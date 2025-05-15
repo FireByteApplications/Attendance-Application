@@ -1,0 +1,65 @@
+<% title = 'Add User' %>
+<!DOCTYPE html>
+<html lang="en">
+  <%- include('../partials/head') %>
+  <body>
+    <div class="container my-4">
+      <h1>Add a New User</h1>
+
+      <form id="addUserForm" action="/admin/users/add" method="POST">
+        <div class="mb-3">
+          <input type="text" maxlength="25" id="firstName" name="firstName" class="form-control" 
+            placeholder="First name" pattern="[A-Za-z\s]+" title="Only letters and spaces" required>
+        </div>
+
+        <div class="mb-3">
+          <input type="text" maxlength="25" id="lastName" name="lastName" class="form-control"
+            placeholder="Last name" pattern="[A-Za-z\s]+" title="Only letters and spaces" required>
+        </div>
+
+        <div class="mb-3">
+          <input type="text" maxlength="15" id="fireZoneNumber" name="fireZoneNumber" class="form-control"
+            placeholder="Fire Zone Number" pattern="[1-9]+" title="Only numbers 1-9" required>
+        </div>
+        <div class="mb-3"> 
+          <select id="Status" name="Status" class="form-control" required>
+            <option value="" disabled selected>Select Status</option>
+            <option value="Active">Active</option>
+            <option value="Active(Life)">Active(Life)</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <select id="Membership-Classification" name="Classification" class="form-control" required>
+            <option value="" disabled selected>Select Classification</option>
+            <option value="Ordinary">Ordinary</option>
+            <option value="Associate">Associate</option>
+            <option value="Probationary">Probationary</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <select id="Membership-Type" name="Type" class="form-control" required>
+            <option value="" disabled selected>Select Type</option>
+            <option value="Operational">Operational</option>
+            <option value="Social">Social</option>
+            <option value="Operational Support">Operational Support</option>
+          </select>
+        </div>
+        <input type="text" id="honeypot" name="honeypot" style="display:none;" autocomplete="off">
+
+        <div style="display:none;">
+          <label for="middleName">Middle Name</label>
+          <input type="text" id="middleName" name="middleName" autocomplete="off">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add User</button>
+        <a href="/admin/users" class="btn btn-secondary ms-2">Back to Users</a>
+      </form>
+    </div>
+
+    <script src="/js/add-user.js"></script>
+    <%- include('../partials/footer') %>
+  </body>
+</html>

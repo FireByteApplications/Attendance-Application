@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="manifest" href="/images/site.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title class="title">Operational</title>
+  <link rel="stylesheet" href="/styles/style.css">
+  <script>
+    function checkAuthToken() {
+      const token = sessionStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/attendance/index'
+      }
+    }
+    checkAuthToken();
+  </script>
+</head>
+
+<body class="page3">
+  <h1 id="noOpActTitle">Select Non-Operational Activity</h1>
+
+  <!-- Container for Activity Buttons and Date Input -->
+  <div class="activity-container">
+    <!-- Non-Operational Selection Buttons -->
+    <div class="nonOperationalButtons">
+      <button id="Training" class="selectable-button" data-value="Training">Training</button>
+      <button id="Meeting" class="selectable-button" data-value="Meeting">Meeting</button>
+      <button id="Maintenance" class="selectable-button" data-value="Maintenance">Maintenance</button>
+      <button id="Community-Engagement" class="selectable-button" data-value="Community-Engagement">Community
+        Engagement</button>
+      <button id="BA-Checks" class="selectable-button" data-value="BA-Checks">BA Checks</button>
+      <button id="Vehicle-Movements" class="selectable-button" data-value="Vehicle-Movements">Vehicle
+        Movements</button>
+      <button id="Other" class="selectable-button" data-value="Other">Other</button>
+    </div>
+
+    <!-- Backdate Input Form -->
+    <form id="date">
+      <div id="dateContainer">
+        <label for="inputDate" class="backdate">Backdate (optional):</label>
+        <input autocomplete="off" type="date" name="inputDate" id="inputDate"
+          placeholder="Optional: Enter date dd/mm/yyyy">
+      </div>
+    </form>
+  </div>
+
+  <!-- Submit Button -->
+  <button id="Submit" type="submit">Submit</button>
+
+  <button id="back-button" class="selectable-button" type="button" onclick="goBack()">Back</button>
+
+  <script src="/js/main.js"></script>
+</body>
+
+</html>

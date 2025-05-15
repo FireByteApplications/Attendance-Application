@@ -1,0 +1,32 @@
+{
+  "name": "admin-portal",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "dev": "nodemon --legacy-watch app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@azure/msal-browser": "^4.12.0",
+    "@azure/msal-react": "^3.0.12",
+    "axios": "^1.8.4",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-ejs-layouts": "^2.5.1",
+    "express-session": "^1.18.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.15.0",
+    "mongoose": "^8.13.2"
+  },
+  "devDependencies": {
+    "@azure/msal-node": "^3.5.3",
+    "flatpickr": "^4.6.13",
+    "nodemon": "^3.1.9"
+  }
+}

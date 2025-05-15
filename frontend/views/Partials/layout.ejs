@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+  <% if (isadminpage) { %>
+    <nav class="navbar navbar-dark bg-dark">
+      <div class="container-fluid d-flex justify-content-between align-items-center">
+        <div>
+          <% if (isnotfirstpage) { %>
+            <a href="<%= backLink %>" class="btn btn-outline-light me-3">
+              <i class="bi bi-arrow-left"></i> Back
+            </a>
+          <% } %>
+           <% if (isnotfirstpage) { %>
+            <a id="logout-button" href="/admin/logout" class="btn btn-outline-light me-3">
+              <i></i> logout
+            </a>
+          <% } %>
+          <a class="navbar-brand" href="#"><%= navTitle || "Default Title" %></a>
+        </div>
+      </div>
+    </nav>
+  <% } %>
+
+  <div class="container mt-4">
+    <%- body %>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

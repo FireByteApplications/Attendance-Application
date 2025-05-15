@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Logging Out...</title>
+  <script>
+    // Clear client-side storage
+    localStorage.removeItem('accessToken');
+    sessionStorage.clear();
+
+    // Optional: redirect to homepage after a short delay
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 1000); // 1 second delay
+  </script>
+</head>
+<body>
+  <p>Logging you out…</p>
+</body>
+</html>

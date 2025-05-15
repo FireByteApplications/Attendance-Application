@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="manifest" href="/images/site.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JRFB sign in</title>
+  <link rel="stylesheet" href="/styles/style.css">
+</head>
+
+<body>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const url = window.location.href;
+      console.log("Current URL:", url); // Show the entire URL
+  
+      const params = new URLSearchParams(window.location.search);
+      const message = params.get("popupMessage");
+      const type = params.get("popupType");
+
+  
+      if (message && type) {
+        // Create and show the popup
+        const popup = document.createElement("div");
+        popup.textContent = decodeURIComponent(message);
+        popup.className = `popup ${type}`;
+        document.body.appendChild(popup);
+        popup.style.display = 'block';
+  
+        // Automatically hide the popup after 3 seconds
+        setTimeout(() => {
+          popup.remove();
+        }, 3000);
+      } else {
+        console.log("No popup message or type found.");  // Debugging line
+      }
+  
+      // Optionally clear the query parameters from the URL
+      const urlWithoutParams = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, urlWithoutParams);
+    });
+  </script>
+  
+  <!--login main page-->
+  <h1 class="main-title"> JRFB Attendance Log</h1>
+  <!--username post to server-->
+  <form id="login" action="">
+    <div id="username-container">
+      <label for="username"> Username: </label>
+      <input autocomplete="off" type="text" name="username" id="username" placeholder="Enter your username" required>
+      <button id="login" type="submit">Login</button>
+      <div id="name-list"></div>
+    </div>
+  </form>
+  <script src="/js/main.js"></script>
+</body>
+<footer> 
+  Copyright [2025] [Jamberoo RFB]
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+</footer>
+</html>

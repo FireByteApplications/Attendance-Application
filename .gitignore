@@ -1,0 +1,10 @@
+.env
+.vscode
+.deployment
+dist
+node_modules
+dockerfile
+.dockerignore
+docker-compose.yml
+addepochtimestamp.py
+certs

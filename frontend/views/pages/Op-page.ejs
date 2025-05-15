@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+  <link rel="manifest" href="/images/site.webmanifest">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title class="title">Operational Activity</title>
+  <link rel="stylesheet" href="/styles/style.css">
+  <script>
+    function checkAuthToken() {
+      const token = sessionStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/attendance/index'
+      }
+    }
+    checkAuthToken();
+  </script>
+</head>
+
+<body class="page2">
+  <h1 id="opActTitle">Select Operational Activity</h1>
+
+  <!-- Container for Activity Buttons and Date Input -->
+  <div class="activity-container">
+    <!-- Operational Selection Buttons -->
+    <div class="operationalButtons">
+      <button id="Incident-Call" class="selectable-button" data-value="Incident-Call">Incident Call</button>
+      <button id="Strike-Team" class="selectable-button" data-value="Strike-Team">Strike Team</button>
+      <button id="Deployment" class="selectable-button" data-value="Deployment">Deployment</button>
+      <button id="Hazard-Reduction" class="selectable-button" data-value="Hazard-Reduction">Hazard Reduction</button>
+      <button id="Pile-Burn" class="selectable-button" data-value="Pile-Burn">Pile Burn</button>
+      <button id="Other-operational" class="selectable-button" data-value="Other-operational">Other</button>
+    </div>
+
+    <!-- Backdate Input Form -->
+    <form id="date">
+      <div id="dateContainer">
+        <label for="inputDate" class="backdate">Backdate (optional):</label>
+        <input autocomplete="off" type="date" name="inputDate" id="inputDate"
+          placeholder="Optional: Enter date dd/mm/yyyy">
+      </div>
+    </form>
+  </div>
+
+  <!-- Submit Button -->
+  <button id="Submit" type="submit">Submit</button>
+
+  <!-- Back Button -->
+  <button id="back-button" type="button" onclick="goBack()">Back</button>
+
+  <script src="/js/main.js"></script>
+</body>
+
+</html>
