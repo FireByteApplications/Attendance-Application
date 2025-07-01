@@ -16,6 +16,7 @@ import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
 import { promisify } from 'util';
 import { limiter } from './middleware/rateLimit';
+import MongoStore from 'connect-mongo';
 
 dotenv.config();
 
@@ -45,25 +46,43 @@ import session from 'express-session';
 
 app.use(
   session({
+    store: MongoStore.create({
+      mongoUrl: cosmosDbUri,
+      ttl: 6 * 60 * 60,               // seconds – match cookie maxAge (6 h)
+      autoRemove: 'interval',
+      autoRemoveInterval: 10          // minutes
+    }),
     secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
       httpOnly: true,
-      secure: true, // true in production with HTTPS
+      secure: true,
       sameSite: 'none',
-      maxAge: 6 * 60 * 60 * 1000
+      maxAge: 6 * 60 * 60 * 1000,     // 6 h
     },
-  })
+  }),
 );
 
 app.disable('x-powered-by');
+
+app.set('trust proxy', 1);
 
 app.use(csrfMiddleware);
 
 app.use(['/auth','/api/attendance'], limiter);
 
 app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
+
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      defaultSrc: ["'none'"],      // API should not serve HTML assets
+      frameAncestors: ["'none'"],
+    },
+  })
+)
 
 if (!cosmosDbUri) {
   throw new Error('URI is not defined in the environment variables.');
@@ -720,27 +739,21 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const safeRegex = new RegExp('^' + escapeStringRegexp(query), 'i');
 
     const names = await usersCollection
-      .find({ username: new RegExp('^' + escapeStringRegexp(query), 'i') }, { projection: { username: 1, _id: 0 } })
+      .find({ username: safeRegex}, { projection: { username: 1, _id: 0 } })
       .toArray();
 
     res.status(200).json(names.map((u) => u.username));
   };
   app.get('/api/attendance/usernameList', listNames)
 
-
-  const httpsOptions = {
-    key: fs.readFileSync('./certs/mkcert+3-key.pem'),     // ✅ path to your .key
-    cert: fs.readFileSync('./certs/mkcert+3.pem'),    // ✅ path to your .crt
-  };
 app.use(
   (err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Unhandled', err.message);
     res.status(500).json({ message: 'Internal server error' });
   },
 );
-  const server = https.createServer(httpsOptions, app);
 
-  server.listen(port, () => {
+  app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });
 }).catch((err) => {
