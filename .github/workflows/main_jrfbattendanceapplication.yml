@@ -4,9 +4,6 @@
 name: Build and deploy API Node.js app to Azure Web App - JRFBAttendanceApplication
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
