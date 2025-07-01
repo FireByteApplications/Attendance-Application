@@ -1,0 +1,284 @@
+.attendanceBg {
+  background: url('../assets/background.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  min-height: 100vh;
+  min-width: 100vw;
+  width: 100vw;
+  height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+  overflow-x: hidden;        /* Prevents horizontal scrollbar */
+  display: flex;
+  flex-direction: column;
+}
+
+html, body, #root {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+}
+/*html, body, #root {
+  height: 100%;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+}*/
+.datetimepicker {
+  max-width: 200px;
+}
+.flatpickrCalendar {
+  font-size: 14px;
+  max-width: 300px;
+}
+.footerStyled {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  font-size: small;
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.9);
+  opacity: 0.8;
+  z-index: 9999;
+  border-top-left-radius: 8px;
+  box-shadow: -2px -2px 8px rgba(0, 0, 0, 0.2);
+  pointer-events: none; /* Prevents footer from being focusable if needed */
+}
+
+.mainTitle,
+.opActTitle,
+.noOpActTitle,
+.OpTitle {
+  width: fit-content;
+  border: 2px solid black;
+  border-radius: 20px;
+  text-align: center;
+  padding: 15px 30px;
+  background-color: #ffffff;
+  margin: 10px auto;
+}
+
+.loginForm {
+  border: 3px solid #f1f1f1;
+  background-color: lightgray;
+  width: 175px;
+  padding: 10px;
+  margin: 0 auto 20px auto;
+  transform: scale(1.5);
+  margin-top: 10%;
+  justify-content: center;
+  position: relative;
+}
+
+.usernameContainer {
+  position: relative;
+  margin: 10px 0 0 0;
+  width: 100%;
+}
+
+.dateForm {
+  display: block;
+  background-color: #555;
+  border: none;
+  border-radius: 8px;
+  padding: 5px;
+  width: fit-content;
+  height: auto;
+  font-size: 15px;
+  margin: 0 auto 20px auto;
+}
+
+.backdateLabel {
+  color: white;
+}
+
+.dateContainer {
+  position: relative;
+  padding-top: 5px;
+  width: 100%;
+}
+
+.usernameInput {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.subtitle {
+  margin: 0 auto;
+  text-align: center;
+}
+
+.loginFormMargin {
+  margin: 10px 0 0 65px;
+}
+
+.nameList {
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  position: absolute;
+  background-color: white;
+  z-index: 1000;
+  width: 100%;
+  display: none;
+}
+
+.nameListItem {
+  padding: 8px;
+  cursor: pointer;
+}
+.nameListItemHover {
+  background-color: #e9e9e9;
+}
+
+.activityContainer {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.activity,
+.operationalButtons,
+.nonOperationalButtons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 20px;
+  justify-content: center;
+  padding: 20px;
+}
+
+.selectableButton {
+  padding: 15px 30px;
+  font-size: 18px;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  background-color: #555;
+  color: white;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.selectableButton.selected {
+  background-color: #333 !important;
+  transform: scale(1.05);
+}
+
+.backButton {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 0.5em;
+  border: none;
+  background-color: #555;
+  color: white;
+  z-index: 10;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.backButton:hover {
+  background-color: #333;
+  transform: scale(1.05);
+}
+
+.submitButton {
+  display: block;
+  background-color: #eb1919;
+  padding: 15px 30px;
+  font-size: 18px;
+  cursor: pointer;
+  border-width: 2px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  justify-content: center;
+  left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+  margin-top: 20px;
+}
+.submitButton:hover {
+  background-color: #c81818;
+}
+
+/* Popup styling */
+.popup {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px;
+  border-radius: 5px;
+  color: white;
+  font-size: 16px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  animation: fadeout 1s ease-out 3s forwards;
+}
+.popupSuccess {
+  background-color: #4caf50;
+}
+.popupError {
+  background-color: #f44336;
+}
+
+@keyframes fadeout {
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+/* Mobile Styles */
+@media (max-width: 600px) {
+  .attendanceBg,
+  .attendanceBgHtml {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .main,
+  .footerStyled,
+  .headerStyled {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    min-height: 100%;
+  }
+  .backButton {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    z-index: 20;
+  }
+  .activityContainer {
+    margin-top: 80px;
+    padding: 10px;
+  }
+  .opActTitle,
+  .noOpActTitle {
+    margin-top: 20px;
+  }
+  .submitButton {
+    position: fixed;
+    bottom: 20px;
+    width: 80%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+.btnDark {
+  text-emphasis-color: white;
+}
+.custom-title {
+  padding-right: 1rem;
+  padding-left: 1rem;
+}
+main {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
