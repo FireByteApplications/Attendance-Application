@@ -1,8 +1,13 @@
 import { Helmet } from "react-helmet-async";
 import {useState, useEffect, useRef} from "react";
+import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function Login() {
+  const csrfToken = useCsrfToken(apiurl);
+    useEffect(() => {
+        if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
+      }, [csrfToken]);
   const [popup, setPopup] = useState({ message: "", type: "" });
   const [username, setUsername] = useState("");
   const [nameSuggestions, setNameSuggestions] = useState([]);
