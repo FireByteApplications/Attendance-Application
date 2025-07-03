@@ -46,7 +46,8 @@ jobs:
           output_location: "dist"  # App source code path
           api_location: "" # Api source code path - optional
           github_id_token: ${{ steps.idtoken.outputs.result }}
-          
+      - name: Show dist contents
+        run: ls -R frontend/dist | grep staticwebapp || true   
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
