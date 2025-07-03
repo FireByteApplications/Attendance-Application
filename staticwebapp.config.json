@@ -1,0 +1,11 @@
+{
+  "routes": [
+    {
+      "route": "/attendance/selection",
+      "methods": [
+        "get"
+      ],
+      "statusCode": 200
+    }
+  ]
+}
