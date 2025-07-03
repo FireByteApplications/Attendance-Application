@@ -1,7 +1,7 @@
 .env
 .vscode
 .deployment
-api/dist
+dist
 node_modules
 dockerfile
 .dockerignore
