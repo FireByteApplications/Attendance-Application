@@ -1,7 +1,13 @@
 {
-  "routes": [
-    { "route": "/*", "rewrite": "/index.html" }
-  ],
+"navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*", 
+      "/*.css", "/*.js",
+      "/favicon.ico",
+      "/manifest.webmanifest"
+    ]
+  },
 
   "globalHeaders": {
     "Strict-Transport-Security":
