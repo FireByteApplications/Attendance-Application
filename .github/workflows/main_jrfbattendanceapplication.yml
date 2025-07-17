@@ -1,9 +1,12 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy API Node.js app to Azure Web App - JRFBAttendanceApplication
+name: Build and deploy Node.js app to Azure Web App - JRFBAttendanceApplication
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -21,14 +24,13 @@ jobs:
           node-version: '22.x'
 
       - name: npm install, build, and test
-        working-directory: api
         run: |
           npm install
           npm run build --if-present
           npm run test --if-present
 
       - name: Zip artifact for deployment
-        run: cd api && zip -r ../release.zip .
+        run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -39,6 +41,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -55,9 +58,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9C77CD05D94046FF94B19217D03A60D9 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_0503CB4D86874519B377122FC50F7727 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_405B12D0BEF44880A137E0DC39F3A027 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_E0D5002B8EC24C98989F2D2C99C5C11C }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_1F4C4A1384ED4C389B407F931339BE9C }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_502E410A6C5644DD8B08C1BA91306C5A }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
