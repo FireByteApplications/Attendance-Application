@@ -1,6 +1,6 @@
 // src/App.jsx
 if(
-  window.location.hotname.endsWith('.azurestaticapps.net') && window.location.hostname !== 'jrfbattendanceappfd-d7bmgfb8f6g6debw.z03.azurefd.net'
+  window.location.hostname.endsWith('.azurestaticapps.net') && window.location.hostname !== 'jrfbattendanceappfd-d7bmgfb8f6g6debw.z03.azurefd.net'
   ){
     window.location.href = 'https://jrfbattendanceappfd-d7bmgfb8f6g6debw.z03.azurefd.net'
   }
