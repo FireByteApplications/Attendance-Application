@@ -7,7 +7,6 @@ const apiUrl = import.meta.env.VITE_API_BASE_URL;
 export default function Users() {
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState(new Set());
-  const [selectAll, setSelectAll] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [editingUser, setEditingUser] = useState(null);
@@ -104,12 +103,6 @@ export default function Users() {
     setEditingNumber(null);
   };
 
-  const handleSelectAll = () => {
-    const newSet = selectAll ? new Set() : new Set(users.map(u => u.number));
-    setSelectedUsers(newSet);
-    setSelectAll(!selectAll);
-  };
-
   const handleUserCheckbox = (number) => {
     const newSet = new Set(selectedUsers);
     newSet.has(number) ? newSet.delete(number) : newSet.add(number);
@@ -133,7 +126,6 @@ export default function Users() {
         if (data.success) {
           setUsers(prev => prev.filter(u => !selectedUsers.has(u.number)));
           setSelectedUsers(new Set());
-          setSelectAll(false);
           setSuccessMessage(data.message || "Users deleted successfully.");
           setTimeout(() => {
           window.location.reload();
@@ -164,7 +156,6 @@ export default function Users() {
         <table className="table table-striped mt-4">
           <thead>
             <tr>
-              <th><input type="checkbox" checked={selectAll} onChange={handleSelectAll} /> Select All</th>
               <th>Name</th>
               <th>Fire Zone Number</th>
               <th>Status</th>
