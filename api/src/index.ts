@@ -21,6 +21,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
+const sessionStoreUrl = process.env.SESSION_STORE_URL
 const ADMIN_GROUP_ID = process.env.ADMIN_GROUP_ID!;
 const FRONTEND_URL = process.env.FRONTEND_URL
 const TENANT_ID = process.env.AZURE_TENANT_ID!;
@@ -45,7 +46,8 @@ import session from 'express-session';
 app.use(
   session({
     store: MongoStore.create({
-      mongoUrl: cosmosDbUri,
+      mongoUrl: sessionStoreUrl,
+      collectionName: 'Sessions',
       ttl: 6 * 60 * 60,               // seconds – match cookie maxAge (6 h)
       autoRemove: 'interval',
       autoRemoveInterval: 10          // minutes
