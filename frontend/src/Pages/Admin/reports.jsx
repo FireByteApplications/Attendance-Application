@@ -112,7 +112,6 @@ export default function Reports({ users = [] }) {
     });
 
     const result = await res.json();
-    console.log(result)
     if (!result.count) {
       setReportHTML('<div class="alert alert-warning">No records found for the selected filters.</div>');
     } else {

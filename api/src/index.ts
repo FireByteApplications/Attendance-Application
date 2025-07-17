@@ -681,7 +681,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     deploymentLocation,
     otherType
   } = req.body;
-  console.log(otherType)
   const record: any = {
     name,
     operational,
@@ -702,12 +701,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     record.deploymentLocation = deploymentLocation;
   }
   if (activity === 'Other-Non-operational' || activity === 'Other-operational') {
-    console.log(otherType)
     record.otherType = otherType;
   }
 
   try {
-    console.log(record)
     const result = await recordsCollection.insertOne(record);
     res.status(200).json({ message: 'Data submitted successfully', result });
   } catch (error) {

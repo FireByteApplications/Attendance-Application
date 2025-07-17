@@ -62,7 +62,6 @@ export default function OperationalPage() {
     }),
     ...(activity === "Other-operational" && { otherType })
   };
-    console.log(data)
 
     try {
       const response = await fetch(`${apiurl}/api/attendance/submit`, {

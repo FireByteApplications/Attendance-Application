@@ -73,7 +73,6 @@ export default function OperationalPage() {
         },
         body: JSON.stringify(data),
       });
-      console.log(data)
 
       const result = await response.json();
 
