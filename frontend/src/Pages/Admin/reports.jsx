@@ -17,9 +17,10 @@ const activityOptions = {
     "Meeting",
     "Training",
     "Maintenance",
-    "Other",
+    "Other-Non-operational",
     "Community-Engagement",
     "BA-Checks",
+    "Chainsaw-Checks"
   ],
   Any: [
     "Incident-Call",
@@ -31,9 +32,10 @@ const activityOptions = {
     "Meeting",
     "Training",
     "Maintenance",
-    "Other",
+    "Other-Non-operational",
     "Community-Engagement",
     "BA-Checks",
+    "Chainsaw-Checks"
   ],
 };
 
@@ -52,6 +54,8 @@ export default function Reports({ users = [] }) {
     incidentType: '',
     deploymentArea: '',
     baType: '',
+    chainsawType: '',
+    otherType: ''
   });
 
   const [activities, setActivities] = useState(activityOptions.Any);
@@ -98,6 +102,8 @@ export default function Reports({ users = [] }) {
         DeploymentType: form.incidentType,
         deploymentArea: form.deploymentArea,
         baType: form.baType,
+        chainsawType: form.chainsawType,
+        otherType: form.otherType
       }),
     });
 
@@ -114,6 +120,8 @@ export default function Reports({ users = [] }) {
               <th>Timestamp</th><th>Name</th><th>Operational</th><th>Activity</th>
               ${form.activity === 'Deployment' ? '<th>Incident Type</th><th>Deployment Area</th>' : ''}
               ${form.activity === 'BA-Checks' ? '<th>BA Type</th>' : ''}
+              ${form.activity === 'Chainsaw-Checks' ? '<th>Chainsaw Type</th>' : ''}
+              ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? '<th>Other Activity</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -125,6 +133,8 @@ export default function Reports({ users = [] }) {
                 <td>${r.activity}</td>
                 ${form.activity === 'Deployment' ? `<td>${r.deploymentType || ''}</td><td>${r.deploymentLocation || ''}</td>` : ''}
                 ${form.activity === 'BA-Checks' ? `<td>${r.baType || ''}</td>` : ''}
+                ${form.activity === 'Chainsaw-Checks' ? `<td>${r.chainsawType || ''}</td>` : ''}
+                ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? `<td>${r.otherType || ''}</td>` : ''}
               </tr>`).join('')}
           </tbody>
         </table>`;
@@ -158,6 +168,8 @@ export default function Reports({ users = [] }) {
         DeploymentType: form.incidentType,
         deploymentArea: form.deploymentArea,
         baType: form.baType,
+        chainsawType: form.chainsawType,
+        otherType: form.otherType
       }),
     });
 

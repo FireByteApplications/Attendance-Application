@@ -10,7 +10,8 @@ const activities = [
   "Maintenance",
   "Community-Engagement",
   "BA-Checks",
-  "Other-Non-operational",
+  "Chainsaw-Checks",
+  "Other-Non-operational"
 ];
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
@@ -20,6 +21,8 @@ export default function OperationalPage() {
       if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
     }, [csrfToken]);
   const [baType, setBaType] = useState("");
+  const [chainsawType, setChainsawType] = useState("");
+  const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
   const navigate = useNavigate();
@@ -54,9 +57,10 @@ export default function OperationalPage() {
       operational: activitySelection,
       activity,
       epochTimestamp: dateObj.getTime(),
-    ...(activity === "BA-Checks" && { baType })
+    ...(activity === "BA-Checks" && { baType }),
+    ...(activity === "Chainsaw-Checks" && { chainsawType }),
+    ...(activity === "Other-Non-operational" && { otherType })
   };
-    console.log(data)
 
     try {
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
@@ -68,6 +72,7 @@ export default function OperationalPage() {
         },
         body: JSON.stringify(data),
       });
+      console.log(data)
 
       const result = await response.json();
 
@@ -92,10 +97,10 @@ export default function OperationalPage() {
   return (
     <div className={styles.attendanceBg}>
       <Helmet>
-        <title>Operational Attendance</title>
+        <title>Non Operational Attendance</title>
       </Helmet>        
       <div className="container py-4">
-        <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-gray-600 fw-semibold shadow-sm'>Select Operational Activity</h1>
+        <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-gray-600 fw-semibold shadow-sm'>Select Non Operational Activity</h1>
         <div className="d-flex flex-wrap justify-content-center gap-2 my-4">
           {activities.map((activity) => (
             <button
@@ -127,6 +132,44 @@ export default function OperationalPage() {
               <option value="Cat 1">Cat 1</option>
               <option value="Pumper">Pumper</option>
             </select>
+          </div>
+        )}
+        {selectedActivity === "Chainsaw-Checks" && (
+          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          style={{
+              fontSize: "1rem",
+              padding: "0.25rem 0.75rem",
+              maxWidth: "400px",       // ✅ limit total width
+              width: "100%",
+              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+            }}>
+            <label className="form-label fw-bold d-block">Select Chainsaw Type:</label>
+            <select
+              className="form-select w-50 mx-auto"
+              value={chainsawType}
+              onChange={(e) => setChainsawType(e.target.value)}
+            >
+              <option value="">Select Option</option>
+              <option value="Cat 1">Cat 1</option>
+              <option value="Pumper">Pumper</option>
+              <option value="Pumper">Cat 9</option>
+            </select>
+          </div>
+        )}
+        {selectedActivity === "Other-Non-operational" && (
+          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          style={{
+              fontSize: "1rem",
+              padding: "0.25rem 0.75rem",
+              maxWidth: "400px",       // ✅ limit total width
+              width: "100%",
+              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+            }}>
+            <label className="form-label fw-bold d-block">Other Non-Operational Activity:</label>
+            <input placeholder="Eg Administration"
+                  value={otherType}
+                  onChange={(e) => setOtherType(e.target.value)}>
+            </input>
           </div>
         )}
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"

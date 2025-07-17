@@ -23,6 +23,7 @@ export default function OperationalPage() {
   const [date, setDate] = useState("");
   const [deploymentType, setDeploymentType] = useState("");
   const [deploymentLocation, setDeploymentLocation] = useState("");
+  const [otherType, setOtherType] = useState("")
   const navigate = useNavigate();
 
   const handleSelect = (activity) => {
@@ -58,7 +59,8 @@ export default function OperationalPage() {
      ...(activity === "Deployment" && {
       deploymentType,
       deploymentLocation
-    })
+    }),
+    ...(activity === "Other-operational" && { otherType })
   };
     console.log(data)
 
@@ -144,6 +146,22 @@ export default function OperationalPage() {
           </select>
         </div>
       )}
+        {selectedActivity === "Other-operational" && (
+          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          style={{
+              fontSize: "1rem",
+              padding: "0.25rem 0.75rem",
+              maxWidth: "400px",       // ✅ limit total width
+              width: "100%",
+              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+            }}>
+            <label className="form-label fw-bold d-block">Other Operational Activity:</label>
+            <input placeholder="Eg Permits"
+                  value={otherType}
+                  onChange={(e) => setOtherType(e.target.value)}>
+            </input>
+          </div>
+        )}
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
             style={{
               fontSize: "1rem",

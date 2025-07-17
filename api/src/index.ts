@@ -2,11 +2,8 @@ import express, { RequestHandler, Request, Response, NextFunction} from 'express
 import cors, { CorsOptions } from 'cors';
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
-import validator from 'validator'; 
 import fetch, { RequestInit as FetchRequestInit } from 'node-fetch';
 import ExcelJS from 'exceljs';
-import https from 'https';
-import fs from 'fs';
 import moment from 'moment-timezone';
 import crypto from 'crypto';
 import { URL, URLSearchParams } from 'url';
@@ -17,6 +14,7 @@ import helmet from 'helmet';
 import { promisify } from 'util';
 import { limiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
+import { sanitizeAttendanceInput } from './middleware/sanitiseAttendanceInput'
 
 dotenv.config();
 
@@ -262,7 +260,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
     try {
-      const users = await db.collection('Usernames').find({}).toArray();
+      const users = await usersCollection.find({}).toArray();
       res.status(200).json(users);
       return;
     } catch (error) {
@@ -656,82 +654,61 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
 
   const submitAttendance: RequestHandler = async (req, res) => {
+  
   const spaceName = (req.body.name as string).trim().toLowerCase();
-  const dotName   = spaceName.replace(/\s+/g, '.');                          
+  const dotName   = spaceName.replace(/\s+/g, '.');   
+
   if (req.session.validUsername !== dotName) {
     res.status(403).json({ message: 'Username not validated in this session' });
     return;
   }
+
   const {
-      name,
-      operational,
-      activity,
-      epochTimestamp,
-      baType,
-      deploymentType,
-      deploymentLocation
-    } = req.body;
-
-    const sanitizedName = validator.trim(name);
-    const sanitizedOperational = validator.trim(operational);
-    const sanitizedActivity = validator.trim(activity);
-
-    if (
-      !/^[a-zA-Z0-9\s]+$/.test(sanitizedName) ||
-      !/^[a-zA-Z0-9\s-]+$/.test(sanitizedOperational) ||
-      !/^[a-zA-Z0-9\s-]+$/.test(sanitizedActivity)
-    ) {
-      res.status(400).json({ message: 'Invalid characters in input fields' });
-      return;
-    }
-
-    const epochTimestampNumber = Number(epochTimestamp);
-    if (!Number.isInteger(epochTimestampNumber) || epochTimestampNumber <= 0) {
-      res.status(400).json({ message: 'Invalid epochTimestamp' });
-      return;
-    }
-
-    const record: any = {
-      name: sanitizedName,
-      operational: sanitizedOperational,
-      activity: sanitizedActivity,
-      epochTimestamp: epochTimestampNumber
-    };
-
-    if (sanitizedActivity === 'BA-Checks') {
-      if (!baType || !/^[a-zA-Z0-9\s]+$/.test(baType)) {
-        res.status(400).json({ message: 'BA type is required and must be valid' });
-        return;
-      }
-      record.baType = validator.trim(baType);
-    }
-
-    if (sanitizedActivity === 'Deployment') {
-      if (!deploymentType || !/^[a-zA-Z\s]+$/.test(deploymentType)) {
-        res.status(400).json({ message: 'Deployment type is required and must be valid' });
-        return
-      }
-      if (!deploymentLocation || !/^[a-zA-Z\s]+$/.test(deploymentLocation)) {
-        res.status(400).json({ message: 'Deployment location is required and must be valid' });
-        return
-      }
-
-      record.deploymentType = validator.trim(deploymentType);
-      record.deploymentLocation = validator.trim(deploymentLocation); // ✅ FIXED key name typo
-    }
-
-    try {
-      const result = await recordsCollection.insertOne(record);
-      res.status(200).json({ message: 'Data submitted successfully', result });
-      return;
-    } catch (error) {
-      console.error('Error submitting data', error);
-      res.status(500).json({ message: 'Failed to submit data' });
-      return;
-    }
-
+    name,
+    operational,
+    activity,
+    epochTimestamp,
+    baType,
+    chainsawType,
+    deploymentType,
+    deploymentLocation,
+    otherType
+  } = req.body;
+  console.log(otherType)
+  const record: any = {
+    name,
+    operational,
+    activity,
+    epochTimestamp
   };
-  app.post('/api/attendance/submit', submitAttendance)
+
+  if (activity === 'Chainsaw-Checks') {
+    record.chainsawType = chainsawType;
+  }
+
+  if (activity === 'BA-Checks') {
+    record.baType = baType;
+  }
+
+  if (activity === 'Deployment') {
+    record.deploymentType = deploymentType;
+    record.deploymentLocation = deploymentLocation;
+  }
+  if (activity === 'Other-Non-operational' || activity === 'Other-operational') {
+    console.log(otherType)
+    record.otherType = otherType;
+  }
+
+  try {
+    console.log(record)
+    const result = await recordsCollection.insertOne(record);
+    res.status(200).json({ message: 'Data submitted successfully', result });
+  } catch (error) {
+    console.error('Error submitting data', error);
+    res.status(500).json({ message: 'Failed to submit data' });
+  }
+};
+  app.post('/api/attendance/submit', sanitizeAttendanceInput, submitAttendance)
 
 
   const listNames: RequestHandler = async (req, res) => {
@@ -739,12 +716,12 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const safeRegex = new RegExp('^' + escapeStringRegexp(query), 'i');
 
     const names = await usersCollection
-      .find({ username: safeRegex}, { projection: { username: 1, _id: 0 } })
+      .find({ username: new RegExp('^' + escapeStringRegexp(query), 'i') }, { projection: { username: 1, _id: 0 } })
       .toArray();
 
     res.status(200).json(names.map((u) => u.username));
   };
-  app.get('/api/attendance/usernameList', listNames)
+  app.get('/api/attendance/usernameList',  listNames)
 
 app.use(
   (err: Error, _req: Request, res: Response, _next: NextFunction) => {
