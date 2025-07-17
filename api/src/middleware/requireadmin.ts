@@ -1,4 +1,3 @@
-// middleware/requireAdmin.ts
 import { Request, Response, NextFunction } from 'express';
 
 export interface AuthedRequest extends Request {

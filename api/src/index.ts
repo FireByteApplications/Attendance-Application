@@ -45,6 +45,7 @@ import session from 'express-session';
 
 app.use(
   session({
+    // Mongo-backed session store for persistent user sessions
     store: MongoStore.create({
       mongoUrl: sessionStoreUrl,
       collectionName: 'Sessions',
@@ -52,7 +53,9 @@ app.use(
       autoRemove: 'interval',
       autoRemoveInterval: 10          // minutes
     }),
+    // Secret key for signing cookies
     secret: process.env.SESSION_SECRET!,
+    // Standard security/session config
     resave: false,
     saveUninitialized: false,
     proxy: true,
@@ -85,6 +88,7 @@ app.use(
 )
 
 if (!cosmosDbUri) {
+   // Ensure DB URI is defined before starting the server
   throw new Error('URI is not defined in the environment variables.');
 }
 const client = new MongoClient(cosmosDbUri);
@@ -119,6 +123,7 @@ client.connect().then(() => {
   app.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
+  // Generates OAuth2 login URL with PKCE challenge
   const login: RequestHandler = (req, res) => {
 
     try { const state = crypto.randomUUID();
@@ -149,7 +154,7 @@ client.connect().then(() => {
   }
   app.get('/auth/login', login)
 
-
+  // Handles Microsoft redirect and token exchange
   const redirect: RequestHandler = async (req, res) =>{
 
   try{
@@ -192,10 +197,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const isAdmin = Array.isArray(groupsData.value) &&
       groupsData.value.some(g => g.id === ADMIN_GROUP_ID);
     try {
-      /* ──[ 3. regenerate → brand-new session ID ]──────────────────── */
+      /* regenerate session ID */
       await promisify(req.session.regenerate.bind(req.session))();
 
-      /* ──[ 4. store user data on the fresh session ]────────────────── */
+      /* store user data on the fresh session */
       req.session.user = {
         email: profile.mail ?? profile.userPrincipalName,
         name: profile.displayName,
@@ -204,7 +209,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       };
       req.session.cookie.maxAge = 6 * 60 * 60 * 1000; // 6 h
 
-      /* ──[ 5. persist & redirect ]──────────────────────────────────── */
+      /* 5. persist & redirect */
       await promisify(req.session.save.bind(req.session))();
 
       const url = new URL(`${FRONTEND_URL}`);
@@ -654,7 +659,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/attendance/checkUser', CheckUsername)
 
-
+  // Session validation based on sanitized username
   const submitAttendance: RequestHandler = async (req, res) => {
   
   const spaceName = (req.body.name as string).trim().toLowerCase();
@@ -683,7 +688,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     activity,
     epochTimestamp
   };
-
+  // Conditional data fields based on activity type
   if (activity === 'Chainsaw-Checks') {
     record.chainsawType = chainsawType;
   }

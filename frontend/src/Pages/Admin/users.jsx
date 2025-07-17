@@ -11,7 +11,7 @@ export default function Users() {
   const [errorMessage, setErrorMessage] = useState("");
   const [editingUser, setEditingUser] = useState(null);
   const [editingNumber, setEditingNumber] = useState(null);
-
+  //fetch all users from database
   const fetchUsers = () => {
     fetch(`${apiUrl}/api/users/list`, {
       method: "GET",
@@ -21,6 +21,7 @@ export default function Users() {
       .then(data => setUsers(data))
       .catch(() => setErrorMessage("Failed to load users."));
   };
+  //fetch csrf token
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
           if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
@@ -31,7 +32,9 @@ export default function Users() {
   }, []);
 
   useEffect(() => {
+    //set last page for back button functionality
     sessionStorage.setItem('lastPage', window.location.href);
+    //timer handle for refreshing page when updating users
     const timer = setTimeout(() => {
       setSuccessMessage("");
       setErrorMessage("");
@@ -39,7 +42,7 @@ export default function Users() {
     }, 3000);
     return () => clearTimeout(timer);
   }, [successMessage, errorMessage]);
-
+  //input sanitisation for users
   const sanitize = (input, type) => {
     const temp = document.createElement("div");
     temp.textContent = input;
@@ -48,7 +51,7 @@ export default function Users() {
     if (type === "fzNumber") return sanitizedInput.replace(/[^0-9]/g, "").slice(0, 12);
     return sanitizedInput;
   };
-
+  //user edit handler and functionality
   const handleEditClick = (user) => {
     setEditingUser({
       ...user,
@@ -57,15 +60,15 @@ export default function Users() {
     });
     setEditingNumber(user.number);
   };
-
+  //handler updates edited values in real time
   const handleEditChange = (field, value) => {
     setEditingUser(prev => ({ ...prev, [field]: value }));
   };
-
+  //handler for saving edited values
   const handleSave = () => {
     const sanitizedName = sanitize(editingUser.name, "name");
     const sanitizedNumber = sanitize(editingUser.number, "fzNumber");
-
+    //prep edited data for api
     const updatedData = {
       name: sanitizedName,
       fzNumber: sanitizedNumber,
@@ -84,6 +87,7 @@ export default function Users() {
       },
       body: JSON.stringify(updatedData),
     })
+    //success and error messaging and handling
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -97,20 +101,21 @@ export default function Users() {
       })
       .catch(() => setErrorMessage("Internal error updating user. Contact system admin"));
   };
-
+  //handler for cancel button on editing
   const handleCancel = () => {
     setEditingUser(null);
     setEditingNumber(null);
   };
-
+  //handle check box for deleting users sets value to users fire zone number
   const handleUserCheckbox = (number) => {
     const newSet = new Set(selectedUsers);
     newSet.has(number) ? newSet.delete(number) : newSet.add(number);
     setSelectedUsers(newSet);
     setSelectAll(newSet.size === users.length);
   };
-
+  //handler for deleting users
   const handleDelete = async () => {
+    //confirmation to avoid accidental deletions
     if (!selectedUsers.size || !window.confirm("Are you sure you want to delete selected users?")) return;
     fetch(`${apiUrl}/api/users/delete`, {
       method: 'POST',
@@ -124,6 +129,7 @@ export default function Users() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          //success and error handling/messaging
           setUsers(prev => prev.filter(u => !selectedUsers.has(u.number)));
           setSelectedUsers(new Set());
           setSuccessMessage(data.message || "Users deleted successfully.");

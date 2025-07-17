@@ -54,7 +54,7 @@ export default function Login() {
     try {
       const response = await fetch(
         `${apiurl}/api/attendance/usernameList?q=${encodeURIComponent(username)}`,
-        { credentials: "include" }          // GET + cookie, no body needed
+        { credentials: "include" } 
       );
       const result = await response.json();
       const names = Array.isArray(result) ? result : result.names || [];
@@ -103,7 +103,7 @@ const handleSubmit = async (e) => {
       throw new Error('invalid');
     }
 
-    const { ok } = await res.json();          // ← server now returns { ok: true/false }
+    const { ok } = await res.json(); 
     if (ok) {
       sessionStorage.setItem('username', username);
       window.location.href = '/attendance/selection';

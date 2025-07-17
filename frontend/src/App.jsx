@@ -20,6 +20,7 @@ function App() {
       {/* Root site-wide layout */}
       <Route element={<Layout />}>
         <Route path="/" element={<Index />} />
+        {/* Admin pages (all under /admin and protected) */}
         <Route path="/admin">
         <Route index element={<Navigate to="/" replace />} />
           <Route

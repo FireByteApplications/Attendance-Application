@@ -1,3 +1,5 @@
+//For use on protected routes on admin centre to ensure only authenticated access via entra
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 

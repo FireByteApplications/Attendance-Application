@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export function useCsrfToken(apiurl) {
   const [token, setToken] = useState('');
-
+  
   useEffect(() => {
     fetch(`${apiurl}/csrf-token`, { credentials: 'include' })
       .then(res => res.json())
@@ -10,5 +10,5 @@ export function useCsrfToken(apiurl) {
       .catch(console.error);
   }, [apiurl]);
 
-  return token;               // '' until loaded
+  return token;
 }

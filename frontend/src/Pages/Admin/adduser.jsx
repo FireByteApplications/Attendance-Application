@@ -1,14 +1,17 @@
+//This page adds users to the database
 import { Helmet } from 'react-helmet-async';
 import {useState, useEffect} from "react";
+//Import component that fetches csrf token from api
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-
+//Defines API url
 const apiUrl = import.meta.env.VITE_API_BASE_URL
+//gets a csrf token from the api for calls
 const AddUser = () => {
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
           if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
         }, [csrfToken]);
-  
+  //Fields for adding a new user with a honeypot to avoid bots
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -19,10 +22,10 @@ const AddUser = () => {
     honeypot: "",
     middleName: "",
   });
-
+  //error and success messages to display
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
+  //watcher for change in values
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -30,22 +33,22 @@ const AddUser = () => {
       [name]: value,
     }));
   };
-
+//watcher for form submission
  const handleSubmit = async (e) => {
   e.preventDefault();
-
+  //form sanitisation
   const sanitizedData = {
     ...formData,
     firstName: sanitizeName(formData.firstName),
     lastName: sanitizeName(formData.lastName),
   };
-
+  //error catching 
   const errors = validateUserForm(sanitizedData);
   if (errors.length > 0) {
     alert(errors.join("\n"));
     return;
   }
-
+  //Post form to endpoint
   try {
     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/adduser`, {
       method: "POST",
@@ -54,15 +57,16 @@ const AddUser = () => {
         "Content-Type": "application/json",
       },
       credentials: "include",
+      //only send sanitised data
       body: JSON.stringify(sanitizedData),
     });
 
     if (res.ok) {
+      //success and error messages, redirects back to previous page if successful
       setSuccessMessage("User added successfully.");
       setTimeout(() => {
         window.location.href = "/admin/users";
       }, 2000);
-      // optionally reset form or redirect
     } else {
       const data = await res.json();
       setErrorMessage(data.message || "Failed to add user please try again.");
@@ -84,7 +88,7 @@ const AddUser = () => {
           {successMessage && <div className="alert alert-success fade show">{successMessage}</div>}
           {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
           <form id="addUserForm" onSubmit={handleSubmit}>
-            {/* First Name */}
+            {/* First Name form */}
             <input
               type="text"
               name="firstName"
@@ -97,7 +101,7 @@ const AddUser = () => {
               onChange={handleChange}
             />
 
-            {/* Last Name */}
+            {/* Last Name form */}
             <input
               type="text"
               name="lastName"
@@ -110,7 +114,7 @@ const AddUser = () => {
               onChange={handleChange}
             />
 
-            {/* Fire Zone Number */}
+            {/* Fire Zone Number form */}
             <input
               type="text"
               name="fireZoneNumber"
@@ -123,7 +127,7 @@ const AddUser = () => {
               onChange={handleChange}
             />
 
-            {/* Status */}
+            {/* Status form */}
             <select
               name="Status"
               className="form-control mb-3"
@@ -137,7 +141,7 @@ const AddUser = () => {
               <option value="Inactive">Inactive</option>
             </select>
 
-            {/* Classification */}
+            {/* Classification form */}
             <select
               name="Classification"
               className="form-control mb-3"
@@ -151,7 +155,7 @@ const AddUser = () => {
               <option value="Probationary">Probationary</option>
             </select>
 
-            {/* Type */}
+            {/* Membership Type form */}
             <select
               name="Type"
               className="form-control mb-3"
@@ -165,7 +169,7 @@ const AddUser = () => {
               <option value="Operational Support">Operational Support</option>
             </select>
 
-            {/* Honeypot */}
+            {/* Honeypot test */}
             <input
               type="text"
               name="honeypot"
@@ -184,7 +188,7 @@ const AddUser = () => {
                 onChange={handleChange}
               />
             </div>
-
+            {/* submission button */}
             <button type="submit" className="btn btn-primary">Add User</button>
             <a href="/admin/users" className="btn btn-secondary ms-2">Back</a>
           </form>
@@ -194,6 +198,7 @@ const AddUser = () => {
 };
 
 export default AddUser;
+//import form validation and user sanitisation
 import {
   validateUserForm,
   sanitizeName

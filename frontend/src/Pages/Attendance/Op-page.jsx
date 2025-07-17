@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
 import { Helmet } from 'react-helmet-async';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-
+// set list of activities
 const activities = [
   "Incident-Call",
   "Strike-Team",

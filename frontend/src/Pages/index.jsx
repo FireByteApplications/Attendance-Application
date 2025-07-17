@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'; // IMPORTANT!
+import { Link } from 'react-router-dom'; 
 import { Helmet } from 'react-helmet-async';
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 export default function Home() {

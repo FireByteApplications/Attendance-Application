@@ -3,7 +3,7 @@ import styles from "../../styles/Attendance.module.css";
 import { Helmet } from 'react-helmet-async';
 import {useState, useEffect } from "react";
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-
+//selection of activites for non operational
 const activities = [
   "Training",
   "Meeting",
@@ -36,14 +36,14 @@ export default function OperationalPage() {
       sessionStorage.removeItem("activity");
     }
   };
-
+  // submit handler
   const handleSubmit = async () => {
     const activity = sessionStorage.getItem("activity");
     if (!activity) {
       alert("Please select an option before submitting");
       return;
     }
-
+    //set date
     const dateObj = date ? new Date(date) : new Date();
     if (date) dateObj.setHours(0, 0, 0, 0);
 
@@ -57,6 +57,7 @@ export default function OperationalPage() {
       operational: activitySelection,
       activity,
       epochTimestamp: dateObj.getTime(),
+      //optional extras for certain activities
     ...(activity === "BA-Checks" && { baType }),
     ...(activity === "Chainsaw-Checks" && { chainsawType }),
     ...(activity === "Other-Non-operational" && { otherType })
