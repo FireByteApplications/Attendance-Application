@@ -7,31 +7,36 @@ of this software and associated documentation files (the “Software”), to use
 modify, and share the Software for non-commercial purposes only, subject to
 the following conditions:
 
-1. **Non-Commercial Use Only**
-   The Software may not be used, in whole or in part, for commercial purposes.
-   Commercial purposes include, but are not limited to:
-   - Selling or licensing the Software or derivative works
-   - Including the Software in a commercial product or service
-   - Using the Software to provide a paid service
-   - Distributing the Software as part of any business or enterprise offering
-   - Used as part of a for profit company
+1. **Non-Commercial Use Only**  
+   The Software may not be used, in whole or in part, for commercial purposes.  
+   Commercial purposes include, but are not limited to:  
+   - Selling or licensing the Software or derivative works  
+   - Including the Software in a commercial product or service  
+   - Using the Software to provide a paid service  
+   - Distributing the Software as part of any business or enterprise offering  
+   - Using the Software as part of a for-profit company  
 
-2. **Attribution**
-   All copies or substantial portions of the Software must retain this license,
+2. **Attribution**  
+   All copies or substantial portions of the Software must retain this license,  
    copyright notice, and attribution to the original author.
 
-3. **Modification and Distribution**
-   You may fork, modify, and distribute this Software for non-commercial use only.
+3. **Modification and Distribution**  
+   You may fork, modify, and distribute this Software for non-commercial use only.  
    Contributions are welcome, provided they comply with these terms.
 
-4. **No Warranty**
-   The Software is provided “as is”, without warranty of any kind, express or
-   implied, including but not limited to the warranties of merchantability,
+4. **No Warranty**  
+   The Software is provided “as is”, without warranty of any kind, express or  
+   implied, including but not limited to the warranties of merchantability,  
    fitness for a particular purpose, and noninfringement.
 
-5. **Future Licensing**
-   The author reserves the right to release this Software under a different license
+5. **Future Licensing**  
+   The author reserves the right to release this Software under a different license  
    in the future, including commercial licensing terms.
+
+6. **Source Availability of Modifications**  
+   Any modifications or derivative works of this Software must also be made  
+   publicly available in source code form, free of charge, under the same  
+   Non-Commercial terms as this license.
 
 For licensing inquiries or commercial use requests, please contact:
 firebyte.app@outlook,com
