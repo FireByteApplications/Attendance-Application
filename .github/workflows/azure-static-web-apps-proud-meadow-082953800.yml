@@ -16,16 +16,6 @@ jobs:
         with:
           submodules: true
           lfs: false
-      - name: Install OIDC Client from Core Package
-        run: npm install @actions/core@1.6.0 @actions/http-client
-      - name: Get Id Token
-        uses: actions/github-script@v6
-        id: idtoken
-        with:
-           script: |
-               const coredemo = require('@actions/core')
-               return await coredemo.getIDToken()
-           result-encoding: string
       - name: Replace API origin in CSP
         run: |
           sed -i "s|__API_ORIGIN__|${{ secrets.SWA_API_ORIGIN }}|" \
