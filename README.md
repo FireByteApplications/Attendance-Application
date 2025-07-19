@@ -7,3 +7,5 @@ An admin section that is authenticated through entra with sections to manage use
 This also packgages a backend API that sends requests through to a database.
 
 This application is not endorsed or affiliated with the Rural Fire service or any other government organisation
+
+PRs welcome
