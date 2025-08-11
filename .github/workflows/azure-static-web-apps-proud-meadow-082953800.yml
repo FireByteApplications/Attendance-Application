@@ -2,7 +2,7 @@ name: Deploy React SPA to Azure Static Web Apps
 
 on:
   push:
-    branches: [ develop ]        # auto-deploy STAGING when you push to develop
+    branches: [ Develop ]        # auto-deploy STAGING when you push to develop
   workflow_dispatch:             # manual runs (use this for PROD/main)
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
       # choose API URL per branch (staging vs prod)
       - name: Select API base URL
         run: |
-          if [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+          if [ "${{ github.ref }}" = "refs/heads/Develop" ]; then
             echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
           else
             echo "VITE_API_BASE_URL=${{ secrets.API_URL_PROD }}" >> $GITHUB_ENV
