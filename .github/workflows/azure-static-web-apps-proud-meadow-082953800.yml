@@ -7,38 +7,63 @@ on:
 
 jobs:
   build_and_deploy_job:
+      env:
+        VITE_API_BASE_URL: ${{ secrets.API_URL }}
+      runs-on: ubuntu-latest
+      name: Build and Deploy Job
+      permissions:
+        id-token: write
+        contents: read
+      steps:
+        - uses: actions/checkout@v3
+          with:
+            submodules: true
+            lfs: false
+        - name: Install OIDC Client from Core Package
+          run: npm install @actions/core@1.6.0 @actions/http-client
+        - name: Get Id Token
+          uses: actions/github-script@v6
+          id: idtoken
+          with:
+            script: |
+                const coredemo = require('@actions/core')
+                return await coredemo.getIDToken()
+            result-encoding: string
+
+        # Pick API URL by branch name
+        - name: Select API base URL
+          run: |
+            if [ "${{ github.ref_name }}" = "Develop" ]; then
+              echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
+            else
+              echo "VITE_API_BASE_URL=${{ secrets.API_URL_PROD }}" >> $GITHUB_ENV
+            fi
+
+        - name: Replace API origin in CSP
+          run: sed -i "s|__API_ORIGIN__|${{ env.VITE_API_BASE_URL }}|" frontend/staticwebapp.config.json
+
+        - name: Build And Deploy
+          id: builddeploy
+          uses: Azure/static-web-apps-deploy@v1
+          env:
+            NODE_VERSION: '22.15.0'
+            VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+          with:
+            azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROUD_MEADOW_082953800 }}
+            action: "upload"
+            app_location: frontend
+            output_location: dist
+            api_location: ""
+            github_id_token: ${{ steps.idtoken.outputs.result }}
+            production_branch: main
+            deployment_environment: staging
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    name: Close Pull Request Job
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-          lfs: false
-
-      # Pick API URL by branch name
-      - name: Select API base URL
-        run: |
-          if [ "${{ github.ref_name }}" = "Develop" ]; then
-            echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
-          else
-            echo "VITE_API_BASE_URL=${{ secrets.API_URL_PROD }}" >> $GITHUB_ENV
-          fi
-
-      - name: Replace API origin in CSP
-        run: sed -i "s|__API_ORIGIN__|${{ env.VITE_API_BASE_URL }}|" frontend/staticwebapp.config.json
-
-      - name: Build And Deploy
+      - name: Close Pull Request
+        id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
-        env:
-          NODE_VERSION: '22.15.0'
-          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROUD_MEADOW_082953800 }}
-          app_location: frontend
-          output_location: dist
-          api_location: ""
-          production_branch: main
-          deployment_environment: staging 
-
+          action: "close"
