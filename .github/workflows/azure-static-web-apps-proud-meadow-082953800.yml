@@ -41,7 +41,15 @@ jobs:
 
         - name: Replace API origin in CSP
           run: sed -i "s|__API_ORIGIN__|${{ env.VITE_API_BASE_URL }}|" frontend/staticwebapp.config.json
-
+        - name: Select env flags
+          run: |
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              echo "VITE_STAGE=prod" >> $GITHUB_ENV
+              echo "VITE_EXPECTED_HOST=app.yourdomain.com" >> $GITHUB_ENV
+            else
+              echo "VITE_STAGE=staging" >> $GITHUB_ENV
+              echo "VITE_EXPECTED_HOST=" >> $GITHUB_ENV
+            fi
         - name: Build And Deploy
           id: builddeploy
           uses: Azure/static-web-apps-deploy@v1
