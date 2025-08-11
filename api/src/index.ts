@@ -20,6 +20,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
+const DB_NAME = process.env.DB_NAME;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
 const sessionStoreUrl = process.env.SESSION_STORE_URL
 const ADMIN_GROUP_ID = process.env.ADMIN_GROUP_ID!;
@@ -95,7 +96,7 @@ const client = new MongoClient(cosmosDbUri);
 
 client.connect().then(() => {
   console.log("DB Connected");
-  const db = client.db('JRFBLogin');
+  const db = client.db(`${DB_NAME}`);
   const usersCollection = db.collection('Usernames');
   const recordsCollection = db.collection('Records');
 
