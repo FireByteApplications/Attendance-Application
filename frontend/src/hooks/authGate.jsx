@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function AuthGate({ children, requireAdmin = false }) {
   const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function AuthGate({ children, requireAdmin = false }) {
           navigate("/unauthorized", { replace: true });
           return;
         }
-
+        setChecking(false);
       } catch (err) {
         if (!ac.signal.aborted) {
           // Network error, etc. Choose where to send them; home is fine.
@@ -45,5 +46,7 @@ export default function AuthGate({ children, requireAdmin = false }) {
     return () => ac.abort();
   }, [navigate, requireAdmin, apiUrl]);
 
+  if (checking) return null;
+  
   return children;
 }
