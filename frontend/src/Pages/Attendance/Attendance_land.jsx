@@ -1,13 +1,9 @@
-import { Helmet } from "react-helmet-async";
+import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect, useRef} from "react";
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 const apiurl = import.meta.env.VITE_API_BASE_URL;
+import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 
 export default function Login() {
-  const csrfToken = useCsrfToken(apiurl);
-    useEffect(() => {
-        if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-      }, [csrfToken]);
   const [popup, setPopup] = useState({ message: "", type: "" });
   const [username, setUsername] = useState("");
   const [nameSuggestions, setNameSuggestions] = useState([]);
@@ -37,7 +33,10 @@ export default function Login() {
     }
     window.history.replaceState({}, document.title, window.location.pathname);
   }, []);
-
+  const csrfToken = useCsrfToken(apiurl);
+      useEffect(() => {
+          if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
+        }, [csrfToken]);
   // Autocomplete effect
   useEffect(() => {
   if (usernameManuallySelected) {
@@ -54,7 +53,7 @@ export default function Login() {
     try {
       const response = await fetch(
         `${apiurl}/api/attendance/usernameList?q=${encodeURIComponent(username)}`,
-        { credentials: "include" } 
+        { credentials: "include" }          // GET + cookie, no body needed
       );
       const result = await response.json();
       const names = Array.isArray(result) ? result : result.names || [];
@@ -103,7 +102,7 @@ const handleSubmit = async (e) => {
       throw new Error('invalid');
     }
 
-    const { ok } = await res.json(); 
+    const { ok } = await res.json();          // ← server now returns { ok: true/false }
     if (ok) {
       sessionStorage.setItem('username', username);
       window.location.href = '/attendance/selection';
@@ -119,7 +118,7 @@ const handleSubmit = async (e) => {
   }
 };
 
-
+  useTitle('JRFB Attendance Log In');
   return (
     <div
       className="d-flex flex-column"
@@ -132,9 +131,6 @@ const handleSubmit = async (e) => {
         overflow: "hidden",
       }}
     >
-      <Helmet>
-        <title>JRFB Attendance Log In</title>
-      </Helmet>
 
       {/* Popup */}
       {popup.message && (

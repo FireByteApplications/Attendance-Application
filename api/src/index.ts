@@ -15,6 +15,9 @@ import { promisify } from 'util';
 import { limiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
 import { sanitizeAttendanceInput } from './middleware/sanitiseAttendanceInput'
+import fs from 'fs';
+import https from 'https';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -50,9 +53,9 @@ app.use(
     store: MongoStore.create({
       mongoUrl: sessionStoreUrl,
       collectionName: 'Sessions',
-      ttl: 6 * 60 * 60,               // seconds – match cookie maxAge (6 h)
+      ttl: 60 * 60, //1 hour
       autoRemove: 'interval',
-      autoRemoveInterval: 10          // minutes
+      autoRemoveInterval: 10
     }),
     // Secret key for signing cookies
     secret: process.env.SESSION_SECRET!,
@@ -64,7 +67,7 @@ app.use(
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      maxAge: 6 * 60 * 60 * 1000,     // 6 h
+      maxAge: 60 * 60 * 1000, //1 hour
     },
   }),
 );
@@ -208,7 +211,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         id: profile.id,
         isAdmin,
       };
-      req.session.cookie.maxAge = 6 * 60 * 60 * 1000; // 6 h
+      req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour
 
       /* 5. persist & redirect */
       await promisify(req.session.save.bind(req.session))();
@@ -231,21 +234,43 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   }
   app.get('/auth/redirect', redirect)
 
-
   const AuthCheck: RequestHandler = (req, res) => {
-  if (req.session.user) {
-      res.json({ 
-        authenticated: true, 
-        user: req.session.user, 
-        isAdmin: req.session.user.isAdmin || false
-      });
-    } else {
-      res.status(401).json({ authenticated: false });
-      return;
-    }
+    if (!req.session || !req.session.user) {
+    return res.status(401).json({ authenticated: false });
   }
+
+  const now = Date.now();
+  const expires = req.session.cookie?.expires
+    ? new Date(req.session.cookie.expires).getTime()
+    : now;
+
+  if (expires <= now) {
+    req.session.destroy(() => {
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+      });
+      res.status(401).json({ authenticated: false });
+    });
+    return;
+  }
+
+  // Otherwise valid
+  res.json({
+    authenticated: true,
+    user: req.session.user,
+    isAdmin: !!req.session.user.isAdmin,
+  });
+}
   app.get('/auth/check', AuthCheck)
 
+  const sessionCheck: RequestHandler = (req, res) => {
+      if (req.session?.user) return res.sendStatus(200);
+    res.sendStatus(401);
+
+  }
+  app.get('/auth/session', sessionCheck)
 
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {

@@ -1,10 +1,9 @@
-import { Helmet } from 'react-helmet-async';
+import { useTitle } from '../../hooks/useTitle.jsx';
 import { useEffect, useState } from 'react';
 import moment from 'moment-timezone';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
-//Dropdown options for reporting 
 const activityOptions = {
   Operational: [
     "Incident-Call",
@@ -41,12 +40,10 @@ const activityOptions = {
 };
 
 export default function Reports({ users = [] }) {
-  //get a csrf token from api
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
           if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
         }, [csrfToken]);
-  //set form defaults as empty
   const [form, setForm] = useState({
     startTime: '',
     endTime: '',
@@ -60,11 +57,11 @@ export default function Reports({ users = [] }) {
     chainsawType: '',
     otherType: ''
   });
-  //define variables for options
+
   const [activities, setActivities] = useState(activityOptions.Any);
   const [reportHTML, setReportHTML] = useState('');
   const [userOptions, setUserOptions] = useState([]);
-  //fetch users from database matching query
+
   useEffect(() => {
     fetch(`${apiUrl}/api/users/names`, {
       method: "GET",
@@ -74,22 +71,21 @@ export default function Reports({ users = [] }) {
       .then(data => setUserOptions(data))
       .catch(console.error);
   }, []);
-  //set activities to user selection or fallback to any
+
   useEffect(() => {
     setActivities(activityOptions[form.operational || 'Any']);
   }, [form.operational]);
-  //data change handler for checkbox for including users with no attendance records
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
-  //report running handler
+
   const runReport = async (e) => {
     e.preventDefault();
-    //define start and end date times converting from aest to epoch
     const startEpoch = moment.tz(form.startTime, "Australia/Sydney").valueOf();
     const endEpoch = moment.tz(form.endTime, "Australia/Sydney").valueOf();
-    //fetch for running on screen report
+
     const res = await fetch(`${apiUrl}/api/reports/run`, {
       method: 'POST',
       headers: { 
@@ -112,10 +108,10 @@ export default function Reports({ users = [] }) {
     });
 
     const result = await res.json();
+    console.log(result)
     if (!result.count) {
       setReportHTML('<div class="alert alert-warning">No records found for the selected filters.</div>');
     } else {
-      //first table row adds headers for certain activities with extra fields
       const html = `
         <h3 class="mb-3">Found ${result.count} record(s)</h3>
         <table class="table table-bordered">
@@ -145,14 +141,14 @@ export default function Reports({ users = [] }) {
       setReportHTML(html);
     }
   };
-  //handler to export the selected data to an excel sheet
+
   const exportExcel = async (e) => {
     e.preventDefault();
     const start = moment.tz(form.startTime, "Australia/Sydney");
     const end = moment.tz(form.endTime, "Australia/Sydney");
     const formattedStart = start.format('YYYYMMDD');
     const formattedEnd = end.format('YYYYMMDD');
-    //fetch for excel export
+
     const res = await fetch(`${apiUrl}/api/reports/export`, {
       method: 'POST',
       headers: { 
@@ -176,7 +172,7 @@ export default function Reports({ users = [] }) {
         otherType: form.otherType
       }),
     });
-    //create blob for excel file
+
     const blob = await res.blob();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -185,10 +181,9 @@ export default function Reports({ users = [] }) {
     link.click();
     link.remove();
   };
-
+  useTitle('Attendance Reports');
   return (
     <>
-      <Helmet><title>Attendance Reports</title></Helmet>
       <div className="container mt-5">
         <h1 className="mb-4">Reports</h1>
         <div className="card p-4 mb-4">

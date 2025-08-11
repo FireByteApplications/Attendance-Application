@@ -1,4 +1,4 @@
-//Function to apply authgate to the protected routes in admin centre
+// src/hooks/ProtectedRoute.jsx
 import AuthGate from "./authGate";
 
 export default function ProtectedRoute({ children, requireAdmin = false }) {
