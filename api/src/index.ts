@@ -114,7 +114,7 @@ client.connect().then(() => {
   function generateCodeChallenge(verifier: string) {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
-  
+
   app.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
@@ -507,7 +507,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   }
   app.post('/api/reports/run', requireAdmin, reportRun)
 
-  
+
     const reportExport: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
