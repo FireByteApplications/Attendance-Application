@@ -12,7 +12,7 @@ import { csrfMiddleware} from './middleware/csrfToken';
 import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
 import { promisify } from 'util';
-import { limiter } from './middleware/rateLimit';
+import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
 import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 
@@ -31,7 +31,7 @@ const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AZURE_REDIRECT_URI!;
 const corsOptions: CorsOptions = {
   origin: [],
-  methods: ['POST', 'GET', 'PATCH'],
+  methods: ['POST', 'GET'],
   credentials: true,
 };
 corsOptions.allowedHeaders = ['Content-Type','X-CSRF-Token']
@@ -75,7 +75,8 @@ app.set('trust proxy', 1);
 
 app.use(csrfMiddleware);
 
-app.use(['/auth','/api/attendance'], limiter);
+app.use(['/api/attendance'], attendanceLimiter)
+app.use(['/api/users', '/api/reports'], adminLimiter)
 
 app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
 
@@ -113,14 +114,7 @@ client.connect().then(() => {
   function generateCodeChallenge(verifier: string) {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
-
-  function sanitizeName(str: string) {
-    return str.toLowerCase().replace(/-/g, '').replace(/\s+/g, '').trim();
-  }
-
-  function sanitizeOptions(str: string) {
-    return str.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-  }
+  
   app.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
@@ -153,7 +147,7 @@ client.connect().then(() => {
       return;
     }
   }
-  app.get('/auth/login', login)
+  app.get('/auth/login', authLimiter, login)
 
   // Handles Microsoft redirect and token exchange
   const redirect: RequestHandler = async (req, res) =>{
@@ -229,7 +223,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   }
-  app.get('/auth/redirect', redirect)
+  app.get('/auth/redirect', authLimiter, redirect)
 
   const AuthCheck: RequestHandler = (req, res) => {
     if (!req.session || !req.session.user) {
@@ -283,7 +277,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.redirect(logoutUrl);
       });
   };
-  app.get('/auth/logout', LogOut)
+  app.get('/auth/logout', authLimiter, LogOut)
 
 
   const getUsersList: RequestHandler = async (req, res) => {
