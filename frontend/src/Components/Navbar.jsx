@@ -1,4 +1,4 @@
-//Navbar with back button and logout button on admin pages
+// src/Components/Navbar.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Navbar() {

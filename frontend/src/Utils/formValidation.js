@@ -3,7 +3,7 @@
 export const validateName = (value) => /^[a-zA-Z\s-]+$/.test(value);
 export const validateSelections = (value) => /^[a-zA-Z\s-()]+$/.test(value);
 export const validateFireZoneNumber = (value) => /^[1-9]+$/.test(value);
-
+export const validateOtherType = (value) => /^[a-zA-Z\s.,']+$/.test(value);
 export const sanitizeName = (name) => name.trim();
 
 // Validate full form before submission

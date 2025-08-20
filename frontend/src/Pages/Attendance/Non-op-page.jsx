@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
-import { Helmet } from 'react-helmet-async';
+import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect } from "react";
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-//selection of activites for non operational
+
 const activities = [
   "Training",
   "Meeting",
@@ -36,14 +36,14 @@ export default function OperationalPage() {
       sessionStorage.removeItem("activity");
     }
   };
-  // submit handler
+
   const handleSubmit = async () => {
     const activity = sessionStorage.getItem("activity");
     if (!activity) {
       alert("Please select an option before submitting");
       return;
     }
-    //set date
+
     const dateObj = date ? new Date(date) : new Date();
     if (date) dateObj.setHours(0, 0, 0, 0);
 
@@ -57,7 +57,6 @@ export default function OperationalPage() {
       operational: activitySelection,
       activity,
       epochTimestamp: dateObj.getTime(),
-      //optional extras for certain activities
     ...(activity === "BA-Checks" && { baType }),
     ...(activity === "Chainsaw-Checks" && { chainsawType }),
     ...(activity === "Other-Non-operational" && { otherType })
@@ -93,12 +92,9 @@ export default function OperationalPage() {
       navigate("/attendance");
     }
   };
-
+  useTitle('Non Operational Attendance');
   return (
-    <div className={styles.attendanceBg}>
-      <Helmet>
-        <title>Non Operational Attendance</title>
-      </Helmet>        
+    <div className={styles.attendanceBg}>     
       <div className="container py-4">
         <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-gray-600 fw-semibold shadow-sm'>Select Non Operational Activity</h1>
         <div className="d-flex flex-wrap justify-content-center gap-2 my-4">

@@ -1,11 +1,8 @@
-import { Helmet } from 'react-helmet-async';
-
+import { useTitle } from '../../hooks/useTitle.jsx';
 const Dashboard = () => {
+  useTitle('Admin Dashboard');
   return (
     <>
-    <Helmet>
-      <title>Admin Dashboard</title>
-    </Helmet>
       <div className="container my-4">
         <h1>Dashboard</h1>
         <div className="row">

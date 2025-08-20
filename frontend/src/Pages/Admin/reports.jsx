@@ -1,10 +1,9 @@
-import { Helmet } from 'react-helmet-async';
+import { useTitle } from '../../hooks/useTitle.jsx';
 import { useEffect, useState } from 'react';
 import moment from 'moment-timezone';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
-//Dropdown options for reporting 
 const activityOptions = {
   Operational: [
     "Incident-Call",
@@ -185,10 +184,9 @@ export default function Reports({ users = [] }) {
     link.click();
     link.remove();
   };
-
+  useTitle('Attendance Reports');
   return (
     <>
-      <Helmet><title>Attendance Reports</title></Helmet>
       <div className="container mt-5">
         <h1 className="mb-4">Reports</h1>
         <div className="card p-4 mb-4">

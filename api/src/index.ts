@@ -12,14 +12,15 @@ import { csrfMiddleware} from './middleware/csrfToken';
 import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
 import { promisify } from 'util';
-import { limiter } from './middleware/rateLimit';
+import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
-import { sanitizeAttendanceInput } from './middleware/sanitiseAttendanceInput'
+import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
+const DB_NAME = process.env.DB_NAME;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
 const sessionStoreUrl = process.env.SESSION_STORE_URL
 const ADMIN_GROUP_ID = process.env.ADMIN_GROUP_ID!;
@@ -49,9 +50,9 @@ app.use(
     store: MongoStore.create({
       mongoUrl: sessionStoreUrl,
       collectionName: 'Sessions',
-      ttl: 6 * 60 * 60,               // seconds – match cookie maxAge (6 h)
+      ttl: 60 * 60, //1 hour
       autoRemove: 'interval',
-      autoRemoveInterval: 10          // minutes
+      autoRemoveInterval: 10
     }),
     // Secret key for signing cookies
     secret: process.env.SESSION_SECRET!,
@@ -63,7 +64,7 @@ app.use(
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      maxAge: 6 * 60 * 60 * 1000,     // 6 h
+      maxAge: 60 * 60 * 1000, //1 hour
     },
   }),
 );
@@ -74,7 +75,8 @@ app.set('trust proxy', 1);
 
 app.use(csrfMiddleware);
 
-app.use(['/auth','/api/attendance'], limiter);
+app.use(['/api/attendance'], attendanceLimiter)
+app.use(['/api/users', '/api/reports'], adminLimiter)
 
 app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
 
@@ -95,7 +97,7 @@ const client = new MongoClient(cosmosDbUri);
 
 client.connect().then(() => {
   console.log("DB Connected");
-  const db = client.db('JRFBLogin');
+  const db = client.db(`${DB_NAME}`);
   const usersCollection = db.collection('Usernames');
   const recordsCollection = db.collection('Records');
 
@@ -113,13 +115,6 @@ client.connect().then(() => {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
 
-  function sanitizeName(str: string) {
-    return str.toLowerCase().replace(/-/g, '').replace(/\s+/g, '').trim();
-  }
-
-  function sanitizeOptions(str: string) {
-    return str.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-  }
   app.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
@@ -152,7 +147,7 @@ client.connect().then(() => {
       return;
     }
   }
-  app.get('/auth/login', login)
+  app.get('/auth/login', authLimiter, login)
 
   // Handles Microsoft redirect and token exchange
   const redirect: RequestHandler = async (req, res) =>{
@@ -207,7 +202,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         id: profile.id,
         isAdmin,
       };
-      req.session.cookie.maxAge = 6 * 60 * 60 * 1000; // 6 h
+      req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour
 
       /* 5. persist & redirect */
       await promisify(req.session.save.bind(req.session))();
@@ -228,23 +223,45 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   }
-  app.get('/auth/redirect', redirect)
-
+  app.get('/auth/redirect', authLimiter, redirect)
 
   const AuthCheck: RequestHandler = (req, res) => {
-  if (req.session.user) {
-      res.json({ 
-        authenticated: true, 
-        user: req.session.user, 
-        isAdmin: req.session.user.isAdmin || false
-      });
-    } else {
-      res.status(401).json({ authenticated: false });
-      return;
-    }
+    if (!req.session || !req.session.user) {
+    return res.status(401).json({ authenticated: false });
   }
+
+  const now = Date.now();
+  const expires = req.session.cookie?.expires
+    ? new Date(req.session.cookie.expires).getTime()
+    : now;
+
+  if (expires <= now) {
+    req.session.destroy(() => {
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+      });
+      res.status(401).json({ authenticated: false });
+    });
+    return;
+  }
+
+  // Otherwise valid
+  res.json({
+    authenticated: true,
+    user: req.session.user,
+    isAdmin: !!req.session.user.isAdmin,
+  });
+}
   app.get('/auth/check', AuthCheck)
 
+  const sessionCheck: RequestHandler = (req, res) => {
+      if (req.session?.user) return res.sendStatus(200);
+    res.sendStatus(401);
+
+  }
+  app.get('/auth/session', sessionCheck)
 
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
@@ -260,7 +277,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.redirect(logoutUrl);
       });
   };
-  app.get('/auth/logout', LogOut)
+  app.get('/auth/logout', authLimiter, LogOut)
 
 
   const getUsersList: RequestHandler = async (req, res) => {
@@ -297,31 +314,13 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
-  let { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot } = req.body;
+  const { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot, middleName } = req.body;
 
-    if (honeypot) res.status(400).json({ message: 'Bot detected, form submission blocked' });
+    if (honeypot || middleName) res.status(400).json({ message: 'Bot detected, form submission blocked' });
 
     if (!firstName || !lastName || !fireZoneNumber || !Status || !Classification || !Type) {
     res.status(400).json({ message: 'Missing required fields' });
     return;
-    }
-
-    firstName = sanitizeName(firstName);
-    lastName = sanitizeName(lastName);
-    Status = sanitizeOptions(Status);
-    Classification = sanitizeOptions(Classification);
-    Type = sanitizeOptions(Type);
-
-    const nameRegex = /^[a-z\s]+$/;
-    if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
-      res.status(400).json({ message: 'Fields can only contain letters and spaces' });
-      return;
-    }
-
-    const fireZoneRegex = /^[1-9]+$/;
-    if (!fireZoneRegex.test(fireZoneNumber)) {
-      res.status(400).json({ message: 'Fire zone number must only contain numbers 1-9' });
-      return;
     }
 
     const id = `${firstName} ${lastName}`;
@@ -344,7 +343,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return
     }
   };
-  app.post('/api/users/addUser', requireAdmin, addUser)
+  app.post('/api/users/addUser', sanitizeUser, requireAdmin, addUser)
 
 
   const deleteUser: RequestHandler = async (req, res) => {
@@ -383,7 +382,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
-  const { name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType } = req.body;
+  const { oldname, name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType } = req.body;
       const [firstname, ...lastnameArr] = name.split(' ');
       const lastname = lastnameArr.join(' ');
       const updatedUser = {
@@ -396,26 +395,61 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       };
 
       try {
-        const updatedRecord = await usersCollection.findOneAndUpdate(
+        const updateUser = await usersCollection.findOneAndUpdate(
           { number: oldfzNumber },
           { $set: updatedUser },
           { returnDocument: 'after' }
         );
-        if (updatedRecord) {
-          res.status(200).json({ success: true, updatedRecord });
-          return;
-        } else {
-          res.status(404).json({ success: false, message: 'Record not found.' });
-          return;
+        const updateRecord = await recordsCollection.updateMany(
+          {name: oldname},
+          {$set: {name: name}}
+        )
+        const userOk    = !!(updateUser?.modifiedCount ?? updateUser);
+        const recordOk  = !!(updateRecord?.modifiedCount ?? updateRecord);
+        if (userOk && recordOk) {
+          return res.status(200).json({
+            success: true,
+            message: "User and records updated.",
+            updateUser,
+            updateRecord,
+          });
         }
+
+        if (userOk && !recordOk) {
+          // <-- your requested case: user updated, no records found
+          return res.status(200).json({
+            success: true,
+            message: "User updated. No records found to update.",
+            updateUser,
+            updateRecord,
+          });
+        }
+
+        if (!userOk && recordOk) {
+          // You can choose 200 (partial success) or 404 (user not found). 200 is friendlier.
+          return res.status(200).json({
+            success: true,
+            partial: true,
+            message: "Records updated, but user not found/updated.",
+            updateUser,
+            updateRecord,
+          });
+        }
+
+        // Neither update happened
+        return res.status(404).json({
+          success: false,
+          message: "No user or records found to update.",
+          updateUser,
+          updateRecord,
+        });
       } catch (error) {
-        console.error('Error updating record:', error);
-        res.status(500).json({ success: false, message: 'An error occurred while updating the record.' });
+        console.error('Error updating User:', error);
+        res.status(500).json({ success: false, message: 'An error occurred while updating the User.' });
         return;
       }
-
   }
-  app.post('/api/users/updateRecord', requireAdmin, updateUser)
+  app.post('/api/users/updateRecord', sanitizeUpdatedUser, requireAdmin, updateUser)
 
 
   const reportRun: RequestHandler = async (req, res) => {
@@ -474,7 +508,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   app.post('/api/reports/run', requireAdmin, reportRun)
 
 
-  const reportExport: RequestHandler = async (req, res) => {
+    const reportExport: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
   const {
@@ -642,7 +676,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
       const username = (req.query.u as string | undefined)?.trim().toLowerCase() ?? '';
-    if (username.length < 3 || username.length > 20 || !/^[a-z.]+$/.test(username)) {
+    if (username.length < 3 || username.length > 20 || !/^[a-zA-Z]+.?[a-zA-Z]+-?[a-zA-Z]+?$/.test(username)) {
       res.status(400).json({ ok: false, message: 'Invalid username' });
       return;
     }

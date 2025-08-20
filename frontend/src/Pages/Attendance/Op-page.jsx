@@ -1,9 +1,9 @@
 import {useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
-import { Helmet } from 'react-helmet-async';
+import { useTitle } from '../../hooks/useTitle.jsx';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-// set list of activities
+
 const activities = [
   "Incident-Call",
   "Strike-Team",
@@ -93,12 +93,9 @@ export default function OperationalPage() {
       navigate("/attendance");
     }
   };
-
+  useTitle('Operational Attendance');
   return (
     <div className={styles.attendanceBg}>
-      <Helmet>
-        <title>Operational Attendance</title>
-      </Helmet>  
       <div className="container py-4">
         <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm'>Select Operational Activity</h1>
         <div className="d-flex flex-wrap justify-content-center gap-2 my-4">

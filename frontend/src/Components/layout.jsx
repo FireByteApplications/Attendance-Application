@@ -1,4 +1,3 @@
-//layout for the navbar
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 

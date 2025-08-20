@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
-import { Helmet } from 'react-helmet-async';
+import { useTitle } from '../../hooks/useTitle.jsx';
 export default function OperationalSelection() {
   const navigate = useNavigate();
   const handleSelect = (type) => {
@@ -14,13 +14,9 @@ export default function OperationalSelection() {
   const goBack = () => {
     navigate(-1);
   };
-
+  useTitle('Attendance Type');
   return (
     <div className={styles.attendanceBg}>
-      <Helmet>
-        <title>Attendance Type</title>
-      </Helmet>
-
       <h1 className='custom-title text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm'>
         Was your attendance operational or non operational?
       </h1>
