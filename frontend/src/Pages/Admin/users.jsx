@@ -53,6 +53,7 @@ export default function Users() {
     setEditingUser({
       ...user,
       oldfzNumber: user.number,
+      oldName: user.id,
       name: user.id,
     });
     setEditingNumber(user.number);
@@ -67,6 +68,7 @@ export default function Users() {
     const sanitizedNumber = sanitize(editingUser.number, "fzNumber");
 
     const updatedData = {
+      oldname: editingUser.oldName,
       name: sanitizedName,
       fzNumber: sanitizedNumber,
       oldfzNumber: editingUser.oldfzNumber,
@@ -74,7 +76,6 @@ export default function Users() {
       memberClassification: editingUser.membership_classification,
       memberType: editingUser.membership_type,
     };
-
     fetch(`${apiUrl}/api/users/updateRecord`, {
       method: 'POST',
       credentials: "include",

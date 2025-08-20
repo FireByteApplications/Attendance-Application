@@ -409,7 +409,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
-  const { name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType } = req.body;
+  const { oldname, name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType } = req.body;
       const [firstname, ...lastnameArr] = name.split(' ');
       const lastname = lastnameArr.join(' ');
       const updatedUser = {
@@ -422,21 +422,57 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       };
 
       try {
-        const updatedRecord = await usersCollection.findOneAndUpdate(
+        const updateUser = await usersCollection.findOneAndUpdate(
           { number: oldfzNumber },
           { $set: updatedUser },
           { returnDocument: 'after' }
         );
-        if (updatedRecord) {
-          res.status(200).json({ success: true, updatedRecord });
-          return;
-        } else {
-          res.status(404).json({ success: false, message: 'Record not found.' });
-          return;
+        const updateRecord = await recordsCollection.updateMany(
+          {name: oldname},
+          {$set: {name: name}}
+        )
+        const userOk    = !!(updateUser?.modifiedCount ?? updateUser);
+        const recordOk  = !!(updateRecord?.modifiedCount ?? updateRecord);
+        if (userOk && recordOk) {
+          return res.status(200).json({
+            success: true,
+            message: "User and records updated.",
+            updateUser,
+            updateRecord,
+          });
         }
+
+        if (userOk && !recordOk) {
+          // <-- your requested case: user updated, no records found
+          return res.status(200).json({
+            success: true,
+            message: "User updated. No records found to update.",
+            updateUser,
+            updateRecord,
+          });
+        }
+
+        if (!userOk && recordOk) {
+          // You can choose 200 (partial success) or 404 (user not found). 200 is friendlier.
+          return res.status(200).json({
+            success: true,
+            partial: true,
+            message: "Records updated, but user not found/updated.",
+            updateUser,
+            updateRecord,
+          });
+        }
+
+        // Neither update happened
+        return res.status(404).json({
+          success: false,
+          message: "No user or records found to update.",
+          updateUser,
+          updateRecord,
+        });
       } catch (error) {
-        console.error('Error updating record:', error);
-        res.status(500).json({ success: false, message: 'An error occurred while updating the record.' });
+        console.error('Error updating User:', error);
+        res.status(500).json({ success: false, message: 'An error occurred while updating the User.' });
         return;
       }
 
