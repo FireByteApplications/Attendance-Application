@@ -14,10 +14,7 @@ import helmet from 'helmet';
 import { promisify } from 'util';
 import { limiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
-import { sanitizeAttendanceInput } from './middleware/sanitiseAttendanceInput'
-import fs from 'fs';
-import https from 'https';
-import path from 'node:path';
+import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 
 dotenv.config();
 
@@ -34,7 +31,7 @@ const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AZURE_REDIRECT_URI!;
 const corsOptions: CorsOptions = {
   origin: [],
-  methods: ['POST', 'GET'],
+  methods: ['POST', 'GET', 'PATCH'],
   credentials: true,
 };
 corsOptions.allowedHeaders = ['Content-Type','X-CSRF-Token']
@@ -323,31 +320,13 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
-  let { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot } = req.body;
+  const { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot, middleName } = req.body;
 
-    if (honeypot) res.status(400).json({ message: 'Bot detected, form submission blocked' });
+    if (honeypot || middleName) res.status(400).json({ message: 'Bot detected, form submission blocked' });
 
     if (!firstName || !lastName || !fireZoneNumber || !Status || !Classification || !Type) {
     res.status(400).json({ message: 'Missing required fields' });
     return;
-    }
-
-    firstName = sanitizeName(firstName);
-    lastName = sanitizeName(lastName);
-    Status = sanitizeOptions(Status);
-    Classification = sanitizeOptions(Classification);
-    Type = sanitizeOptions(Type);
-
-    const nameRegex = /^[a-z\s]+$/;
-    if (!nameRegex.test(firstName) || !nameRegex.test(lastName)) {
-      res.status(400).json({ message: 'Fields can only contain letters and spaces' });
-      return;
-    }
-
-    const fireZoneRegex = /^[1-9]+$/;
-    if (!fireZoneRegex.test(fireZoneNumber)) {
-      res.status(400).json({ message: 'Fire zone number must only contain numbers 1-9' });
-      return;
     }
 
     const id = `${firstName} ${lastName}`;
@@ -370,7 +349,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return
     }
   };
-  app.post('/api/users/addUser', requireAdmin, addUser)
+  app.post('/api/users/addUser', sanitizeUser, requireAdmin, addUser)
 
 
   const deleteUser: RequestHandler = async (req, res) => {
@@ -475,9 +454,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.status(500).json({ success: false, message: 'An error occurred while updating the User.' });
         return;
       }
-
   }
-  app.post('/api/users/updateRecord', requireAdmin, updateUser)
+  app.post('/api/users/updateRecord', sanitizeUpdatedUser, requireAdmin, updateUser)
 
 
   const reportRun: RequestHandler = async (req, res) => {
@@ -536,7 +514,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   app.post('/api/reports/run', requireAdmin, reportRun)
 
 
-  const reportExport: RequestHandler = async (req, res) => {
+    const reportExport: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
   const {

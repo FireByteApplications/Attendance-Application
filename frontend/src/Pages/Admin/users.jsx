@@ -154,6 +154,7 @@ export default function Users() {
         <table className="table table-striped mt-4">
           <thead>
             <tr>
+              <th>Select</th>
               <th>Name</th>
               <th>Fire Zone Number</th>
               <th>Status</th>
