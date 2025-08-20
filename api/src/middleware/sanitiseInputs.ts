@@ -69,12 +69,12 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
   };
 
   const validators = [
-    { value: sanitized.oldname, pattern: /^[a-zA-Z\s-]+$/, field: 'Old Name' },
-    { value: sanitized.name, pattern: /^[a-zA-Z\s-]+$/, field: 'Name' },
+    { value: sanitized.oldname, pattern: /^[a-zA-Z-]+$/, field: 'Old Name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z-]+$/, field: 'Name' },
     { value: sanitized.oldfzNumber, pattern: /^\d{1,9}?$/, field: 'Old Firezone Number' },
     { value: sanitized.fzNumber, pattern: /^\d{1,9}?$/, field: 'FireZone Number' },
-    { value: sanitized.memberStatus, pattern: /^[a-zA-Z\s]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
-    { value: sanitized.memberClassification, pattern: /^[a-zA-Z\s]+$/, field: 'Membership Classification' },
+    { value: sanitized.memberStatus, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
+    { value: sanitized.memberClassification, pattern: /^[a-zA-Z]+$/, field: 'Membership Classification' },
     { value: sanitized.memberType, pattern: /^[a-zA-Z\s]+$/, field: 'Membership Type' }
   ]
 
@@ -104,11 +104,11 @@ export function sanitizeUser(req: Request, res: Response, next: NextFunction) {
   };
 
   const validators = [
-    { value: sanitized.firstName, pattern: /^[a-zA-Z\s-]+$/, field: 'First Name' },
-    { value: sanitized.lastName, pattern: /^[a-zA-Z\s-]+$/, field: 'Last Name' },
+    { value: sanitized.firstName, pattern: /^[a-zA-Z-]+$/, field: 'First Name' },
+    { value: sanitized.lastName, pattern: /^[a-zA-Z-]+$/, field: 'Last Name' },
     { value: sanitized.fireZoneNumber, pattern: /^\d{1,9}?$/, field: 'Firezone Number' },
-    { value: sanitized.Status, pattern: /^[a-zA-Z]+$/, field: 'Membership Status' },
-    { value: sanitized.Classification, pattern: /^[a-zA-Z\s]+\(?[a-zA-Z]+\)?$/, field: 'Membership Classification' },
+    { value: sanitized.Status, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
+    { value: sanitized.Classification, pattern: /^[a-zA-Z]+$/, field: 'Membership Classification' },
     { value: sanitized.Type, pattern: /^[a-zA-Z\s]+$/, field: 'Membership type' }
   ]
 
