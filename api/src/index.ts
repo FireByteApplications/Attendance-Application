@@ -676,7 +676,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
       const username = (req.query.u as string | undefined)?.trim().toLowerCase() ?? '';
-    if (username.length < 3 || username.length > 20 || !/^[a-z.]+$/.test(username)) {
+    if (username.length < 3 || username.length > 20 || !/^[a-zA-Z]+.?[a-zA-Z]+-?[a-zA-Z]+?$/.test(username)) {
       res.status(400).json({ ok: false, message: 'Invalid username' });
       return;
     }

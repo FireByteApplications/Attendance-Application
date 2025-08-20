@@ -69,7 +69,7 @@ const AddUser = () => {
     }
   } catch (err) {
     console.error(err);
-    setErrorMessage("internal error occurred adding user please try again or contact admin");
+    setErrorMessage(data.message || "internal error occurred adding user please try again or contact admin");
   }
 };
   useTitle('Add User');
@@ -88,7 +88,7 @@ const AddUser = () => {
               placeholder="First Name"
               maxLength="25"
               required
-              pattern="[A-Za-z\s]+"
+              pattern="[A-Za-z\s-]+"
               value={formData.firstName}
               onChange={handleChange}
             />
@@ -101,7 +101,7 @@ const AddUser = () => {
               placeholder="Last Name"
               maxLength="25"
               required
-              pattern="[A-Za-z\s]+"
+              pattern="[A-Za-z\s-]+"
               value={formData.lastName}
               onChange={handleChange}
             />

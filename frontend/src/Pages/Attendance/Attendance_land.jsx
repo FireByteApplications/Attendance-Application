@@ -13,7 +13,7 @@ export default function Login() {
   const [usernameManuallySelected, setUsernameManuallySelected] = useState(false);
   // Sanitize input
   const sanitizeInput = (input) => {
-    const regex = /^[a-zA-Z.]+$/;
+    const regex = /^[a-zA-Z.-]+$/;
     return input.split("").filter(char => regex.test(char)).join("");
   };
 
