@@ -26,7 +26,7 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
   };
 
   const validators = [
-    { value: sanitized.name, pattern: /^[a-zA-Z0-9\s]+$/, field: 'name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'name' },
     { value: sanitized.operational, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'operational' },
     { value: sanitized.activity, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'activity' },
     { value: sanitized.baType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'baType' },
@@ -69,8 +69,8 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
   };
 
   const validators = [
-    { value: sanitized.oldname, pattern: /^[a-zA-Z-\s]+$/, field: 'Old Name' },
-    { value: sanitized.name, pattern: /^[a-zA-Z-\s]+$/, field: 'Name' },
+    { value: sanitized.oldname, pattern: /^[a-zA-Z-\s-]+$/, field: 'Old Name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z-\s-]+$/, field: 'Name' },
     { value: sanitized.oldfzNumber, pattern: /^\d{1,9}?$/, field: 'Old Firezone Number' },
     { value: sanitized.fzNumber, pattern: /^\d{1,9}?$/, field: 'FireZone Number' },
     { value: sanitized.memberStatus, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
