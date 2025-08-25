@@ -42,7 +42,7 @@ export default function Home() {
             style={{ textDecoration: 'none' }}
           >
             <div className="card p-4 shadow-sm h-100">
-              <h4 className="mb-0">Admin DashboarD</h4>
+              <h4 className="mb-0">Admin Dashboard</h4>
             </div>
           </button>
         </div>
