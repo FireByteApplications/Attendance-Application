@@ -675,7 +675,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
-      const username = (req.query.u as string | undefined)?.trim().toLowerCase() ?? '';
+      const username = (req.query.u as string | undefined)?.trim() ?? '';
     if (username.length < 3 || username.length > 20 || !/^[a-zA-Z]+.?[a-zA-Z]+-?[a-zA-Z]+?$/.test(username)) {
       res.status(400).json({ ok: false, message: 'Invalid username' });
       return;
@@ -696,7 +696,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   // Session validation based on sanitized username
   const submitAttendance: RequestHandler = async (req, res) => {
   
-  const spaceName = (req.body.name as string).trim().toLowerCase();
+  const spaceName = (req.body.name as string).trim();
   const dotName   = spaceName.replace(/\s+/g, '.');   
 
   if (req.session.validUsername !== dotName) {
