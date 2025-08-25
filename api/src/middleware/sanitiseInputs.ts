@@ -26,7 +26,7 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
   };
 
   const validators = [
-    { value: sanitized.name, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'name' }
     { value: sanitized.operational, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'operational' },
     { value: sanitized.activity, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'activity' },
     { value: sanitized.baType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'baType' },
