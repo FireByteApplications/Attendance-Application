@@ -464,6 +464,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       deploymentType,
       deploymentLocation,
       baType,
+      chainsawType
     } = req.body;
 
     try {
@@ -488,6 +489,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       if (activity === "BA-Checks" && baType) {
         query.baType = baType;
+      }
+
+      if(activity == "Chainsaw-Checks" && chainsawType){
+        query.chainsawType = chainsawType;
       }
 
       const result = await recordsCollection.find(query).toArray();
@@ -518,140 +523,231 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       activity,
       operational,
       includeZeroAttendance,
+      detailed,
       formattedStart,
       formattedEnd,
       deploymentType,
       deploymentLocation,
       baType,
+      chainsawType
     } = req.body;
 
     try {
-      const query: any = {
-        epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
-      };
+        const query: any = {
+          epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
+        };
 
-      if (name) query.name = name;
-      if (activity) query.activity = activity;
-      if (operational) query.operational = operational;
+        if (name) query.name = name;
+        if (activity) query.activity = activity;
+        if (operational) query.operational = operational;
 
-      if (activity === "Deployment") {
-        if (deploymentType) query.deploymentType = deploymentType;
-        if (deploymentLocation) query.deploymentLocation = deploymentLocation;
-      }
-
-      if (activity === "BA-Checks" && baType) {
-        query.baType = baType;
-      }
-
-      const MAX_ROWS = 50000;
-      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
-      const records = await recordsCursor.toArray();
-
-      if (records.length > MAX_ROWS) {
-        res
-        .status(413)
-        .json({ error: 'Result too large. Narrow date range or filters.' });
-        return;
-      }
-      const userDataMap = new Map<string, any>();
-      const usersWithRecords = new Set<string>();
-
-      for (const record of records) {
-        const userName = record.name;
-        usersWithRecords.add(userName);
-
-        if (!userDataMap.has(userName)) {
-          const userDetails = await usersCollection.findOne({ id: userName });
-          if (userDetails) {
-            userDataMap.set(userName, {
-              name: userName,
-              memberNumber: userDetails.number || '',
-              status: userDetails.member_status,
-              Membership_Classification: userDetails.membership_classification,
-              membership_type: userDetails.membership_type,
-              operationalActivities: 0,
-              nonOperationalActivities: 0,
-              records: []
-            });
-          }
-        }
-
-        const userStats = userDataMap.get(userName);
-        if (userStats) {
-          userStats.records.push({
-            timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
-            operational: record.operational,
-            activity: record.activity,
-            ...(record.baType && { baType: record.baType }),
-            ...(record.deploymentType && { deploymentType: record.deploymentType }),
-            ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
-          });
-
-          if (record.operational === "Operational") userStats.operationalActivities++;
-          else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
-        }
-      }
-
-      if (includeZeroAttendance) {
-        const allUsers = await usersCollection.find({}).toArray();
-        for (const user of allUsers) {
-          if (!usersWithRecords.has(user.id)) {
-            userDataMap.set(user.id, {
-              name: user.id,
-              memberNumber: user.number || '',
-              status: user.member_status,
-              Membership_Classification: user.membership_classification,
-              membership_type: user.membership_type,
-              operationalActivities: 0,
-              nonOperationalActivities: 0,
-              records: []
-            });
-          }
-        }
-      }
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Report');
-
-      const header = [
-        'Name',
-        'Member number',
-        'Status',
-        'Membership Classification',
-        'membership_type',
-        'Operational activities',
-        'Non-operational activities',
-      ];
-
-      if (activity === "BA-Checks") header.push('BA Type');
-      if (activity === "Deployment") {
-        header.push('Deployment Type', 'Deployment Location');
-      }
-
-      worksheet.addRow(header);
-
-      userDataMap.forEach((user: any) => {
-        const row = [
-          user.name,
-          user.memberNumber,
-          user.status,
-          user.Membership_Classification,
-          user.membership_type,
-          user.operationalActivities,
-          user.nonOperationalActivities,
-        ];
-
-        if (activity === "BA-Checks") {
-          const baType = user.records.find((r: any) => r.baType)?.baType || '';
-          row.push(baType);
-        }
         if (activity === "Deployment") {
-          const deploymentType = user.records.find((r: any) => r.deploymentType)?.deploymentType || '';
-          const deploymentLocation = user.records.find((r: any) => r.deploymentLocation)?.deploymentLocation || '';
-          row.push(deploymentType, deploymentLocation);
+          if (deploymentType) query.deploymentType = deploymentType;
+          if (deploymentLocation) query.deploymentLocation = deploymentLocation;
         }
 
-        worksheet.addRow(row);
+        if (activity === "BA-Checks" && baType) {
+          query.baType = baType;
+        }
+        if (activity === "Chainsaw-Type" && chainsawType){
+          query.chainsawType = chainsawType;
+        }
+
+        const MAX_ROWS = 50000;
+        const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
+        const records = await recordsCursor.toArray();
+        if (records.length > MAX_ROWS) {
+          res
+          .status(413)
+          .json({ error: 'Result too large. Narrow date range or filters.' });
+          return;
+        }
+        const userDataMap = new Map<string, any>();
+        const userNoAttendanceDataMap = new Map<string, any>();
+        const usersWithRecords = new Set<string>();
+        for (const record of records) {
+          const userName = record.name;
+          usersWithRecords.add(userName);
+          if(detailed === false){
+            if (!userDataMap.has(userName)) {
+            const userDetails = await usersCollection.findOne({ id: userName });
+            if (userDetails) {
+              userDataMap.set(userName, {
+                name: userName,
+                memberNumber: userDetails.number || '',
+                status: userDetails.member_status,
+                Membership_Classification: userDetails.membership_classification,
+                membership_type: userDetails.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+                });
+              }
+            }
+            const userStats = userDataMap.get(userName);
+            if (userStats) {
+              userStats.records.push({
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                operational: record.operational,
+                activity: record.activity,
+                ...(record.baType && { baType: record.baType }),
+                ...(record.chainsawType && { chainsawType: record.chainsawType }),
+                ...(record.deploymentType && { deploymentType: record.deploymentType }),
+                ...(record.otherType && { otherType: record.otherType }),
+                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+              });
+
+              if (record.operational === "Operational") userStats.operationalActivities++;
+              else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
+            }
+            if (includeZeroAttendance) {
+            const allUsers = await usersCollection.find({}).toArray();
+            for (const user of allUsers) {
+              if (!usersWithRecords.has(user.id)) {
+                userNoAttendanceDataMap.set(user.id, {
+                  name: user.id,
+                  memberNumber: user.number || '',
+                  status: user.member_status,
+                  Membership_Classification: user.membership_classification,
+                  membership_type: user.membership_type,
+                  operationalActivities: 0,
+                  nonOperationalActivities: 0,
+                  records: []
+                  });
+                }
+              } 
+            }
+          }
+          else if(detailed === true){
+            if (!userDataMap.has(userName)) {
+            const userDetails = await usersCollection.findOne({ id: userName });
+            if (userDetails) {
+              userDataMap.set(userName, {
+                name: userName,
+                memberNumber: userDetails.number || '',
+                status: userDetails.member_status,
+                Membership_Classification: userDetails.membership_classification,
+                membership_type: userDetails.membership_type,
+                records: []
+                });
+              }
+              
+              }
+            const userStats = userDataMap.get(userName);
+            if (userStats) {
+              userStats.records.push({
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                operational: record.operational,
+                activity: record.activity,
+                ...(record.baType && { baType: record.baType }),
+                ...(record.chainsawType && { chainsawType: record.chainsawType }),
+                ...(record.deploymentType && { deploymentType: record.deploymentType }),
+                ...(record.otherType && { otherType: record.otherType }),
+                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+              });
+            }
+            if (includeZeroAttendance) {
+              const allUsers = await usersCollection.find({}).toArray();
+              for (const user of allUsers) {
+                if (!usersWithRecords.has(user.id)) {
+                  console.log("!users with records has user id")
+                  userNoAttendanceDataMap.set(user.id, {
+                    name: user.id,
+                    memberNumber: user.number || '',
+                    status: user.member_status,
+                    Membership_Classification: user.membership_classification,
+                    membership_type: user.membership_type,
+                    records: []
+                  });
+                }
+              } 
+            }
+            }
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Report');
+        if(detailed === false){
+          const header = [
+          'Name',
+          'Member number',
+          'Status',
+          'Membership Classification',
+          'membership_type',
+          'Operational activities',
+          'Non-operational activities',
+        ];
+        worksheet.addRow(header);
+        } else if(detailed === true){
+          const header = [
+          'Name',
+          'Member number',
+          'Status',
+          'Membership Classification',
+          'membership_type',
+          'Operational',
+          'Activity',
+          'Activity Detail',
+          'Activity Location',
+          'timestamp'
+        ];
+        worksheet.addRow(header);
+        }
+
+        userDataMap.forEach((user: any) => {
+          let row:(string | number)[] = []
+          if(detailed === false){
+            row = [
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              user.operationalActivities,
+              user.nonOperationalActivities 
+            ]
+            worksheet.addRow(row)
+          } else if(detailed === true) {
+           for (const record of user.records) {
+            let activityType = "";
+            let activityLocation = "";
+            if (record.activity === "BA-Checks") {
+              activityType = record.baType || "";
+            } else if (record.activity === "Chainsaw-Checks") {
+              activityType = record.chainsawType || "";
+            } else if (record.activity === "Other-Non-operational" || record.activity === "Other-operational") {
+              activityType = record.otherType || "";
+            } else if (record.activity === "Deployment") {
+              activityType = record.deploymentType || "";
+              activityLocation = record.deploymentLocation || "";
+            }
+            const row = [
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              record.operational,
+              record.activity,
+              activityType,
+              activityLocation,
+              record.timestampLocal
+            ];
+            worksheet.addRow(row);
+          }
+          userNoAttendanceDataMap.forEach((user: any) =>{
+            let row:(string | number)[] = []
+            row = [
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              "Zero Attendance"
+            ]
+            worksheet.addRow(row)
+          })
+        }
       });
 
       const fallbackFormat = (epoch: number) => new Date(epoch).toISOString().slice(0, 10).replace(/-/g, '');
@@ -683,6 +779,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
     const exists = await usersCollection.findOne({ username });
       if (!exists){
+        console.log(username)
         res.status(404).json({ ok: false });
         return;}
     req.session.validUsername = username;               // 🔑 remember validation in this session
