@@ -102,41 +102,47 @@ export default function Reports({ users = [] }) {
         name: form.name,
         activity: form.activity,
         operational: form.operational,
-        DeploymentType: form.incidentType,
+        deploymentType: form.deploymentType,
         deploymentArea: form.deploymentArea,
         baType: form.baType,
         chainsawType: form.chainsawType,
-        otherType: form.otherType
+        otherType: form.otherType,
       }),
     });
 
     const result = await res.json();
+    console.log(result)
     if (!result.count) {
       setReportHTML('<div class="alert alert-warning">No records found for the selected filters.</div>');
     } else {
-      const html = `
+      const hasActivityType =
+        result.records.some(r => r.deploymentType || r.baType || r.chainsawType || r.otherType)
+      const hasActivityLocation = 
+      result.records.some(r => r.deploymentLocation)
+      const html =`
         <h3 class="mb-3">Found ${result.count} record(s)</h3>
         <table class="table table-bordered">
           <thead>
             <tr>
               <th>Timestamp</th><th>Name</th><th>Operational</th><th>Activity</th>
-              ${form.activity === 'Deployment' ? '<th>Incident Type</th><th>Deployment Area</th>' : ''}
-              ${form.activity === 'BA-Checks' ? '<th>BA Type</th>' : ''}
-              ${form.activity === 'Chainsaw-Checks' ? '<th>Chainsaw Type</th>' : ''}
-              ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? '<th>Other Activity</th>' : ''}
+              ${form.detailed === true && hasActivityType ? `
+              <th>Activity Detail</th>` : ''}
+              ${form.detailed == true && hasActivityLocation ? `
+              <th>Activity Location</th>` : ''}
             </tr>
           </thead>
           <tbody>
-            ${result.records.map((r) => `
+            ${result.records.map((r) => 
+              `
               <tr>
                 <td>${moment.tz(r.epochTimestamp, "Australia/Sydney").format("DD-MM-YYYY HH:mm")}</td>
                 <td>${r.name}</td>
                 <td>${r.operational}</td>
                 <td>${r.activity}</td>
-                ${form.activity === 'Deployment' ? `<td>${r.deploymentType || ''}</td><td>${r.deploymentLocation || ''}</td>` : ''}
-                ${form.activity === 'BA-Checks' ? `<td>${r.baType || ''}</td>` : ''}
-                ${form.activity === 'Chainsaw-Checks' ? `<td>${r.chainsawType || ''}</td>` : ''}
-                ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? `<td>${r.otherType || ''}</td>` : ''}
+                ${form.detailed === true && hasActivityType ? `
+                <td>${r.deploymentType || r.baType || r.chainsawType || r.otherType || ''}</td>` : ''}
+                ${form.detailed === true && hasActivityLocation ?`
+                <td>${r.deploymentLocation || ''}</td>` : ''}
               </tr>`).join('')}
           </tbody>
         </table>`;

@@ -222,7 +222,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   }
   app.get('/auth/redirect', authLimiter, redirect)
-  
+
   const AuthCheck: RequestHandler = (req, res) => {
     if (!req.session || !req.session.user) {
     return res.status(401).json({ authenticated: false });
@@ -253,14 +253,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   });
 }
   app.get('/auth/check', AuthCheck)
-  
+
   const sessionCheck: RequestHandler = (req, res) => {
       if (req.session?.user) return res.sendStatus(200);
     res.sendStatus(401);
 
   }
   app.get('/auth/session', sessionCheck)
-  
+
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid'); // The session cookie, if using express-session
@@ -276,7 +276,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
   };
   app.get('/auth/logout', authLimiter, LogOut)
-  
+
+
   const getUsersList: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -291,7 +292,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/list', requireAdmin, getUsersList);
-  
+
+
   const UserNames: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -305,7 +307,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/names', requireAdmin, UserNames)
-  
+
+
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -339,7 +342,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post('/api/users/addUser', sanitizeUser, requireAdmin, addUser)
-  
+
+
   const deleteUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -371,7 +375,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   };
   app.post('/api/users/delete', requireAdmin, deleteUser)
-  
+
+
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -443,7 +448,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       }
   }
   app.post('/api/users/updateRecord', sanitizeUpdatedUser, requireAdmin, updateUser)
-  
+
+
   const reportRun: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
