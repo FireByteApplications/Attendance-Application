@@ -15,9 +15,7 @@ import { promisify } from 'util';
 import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
 import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
-
 dotenv.config();
-
 const app = express();
 const port = process.env.PORT || 8080;
 const DB_NAME = process.env.DB_NAME;
@@ -224,7 +222,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   }
   app.get('/auth/redirect', authLimiter, redirect)
-
+  
   const AuthCheck: RequestHandler = (req, res) => {
     if (!req.session || !req.session.user) {
     return res.status(401).json({ authenticated: false });
@@ -255,14 +253,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   });
 }
   app.get('/auth/check', AuthCheck)
-
+  
   const sessionCheck: RequestHandler = (req, res) => {
       if (req.session?.user) return res.sendStatus(200);
     res.sendStatus(401);
 
   }
   app.get('/auth/session', sessionCheck)
-
+  
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid'); // The session cookie, if using express-session
@@ -278,8 +276,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
   };
   app.get('/auth/logout', authLimiter, LogOut)
-
-
+  
   const getUsersList: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -294,8 +291,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/list', requireAdmin, getUsersList);
-
-
+  
   const UserNames: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -309,8 +305,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/names', requireAdmin, UserNames)
-
-
+  
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -344,8 +339,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post('/api/users/addUser', sanitizeUser, requireAdmin, addUser)
-
-
+  
   const deleteUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -377,8 +371,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   };
   app.post('/api/users/delete', requireAdmin, deleteUser)
-
-
+  
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -450,8 +443,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       }
   }
   app.post('/api/users/updateRecord', sanitizeUpdatedUser, requireAdmin, updateUser)
-
-
+  
   const reportRun: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -513,9 +505,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   app.post('/api/reports/run', requireAdmin, reportRun)
 
 
-    const reportExport: RequestHandler = async (req, res) => {
-    const authedReq = req as AuthedRequest;
-    authedReq.user = authedReq.session.user;
+  const reportExport: RequestHandler = async (req, res) => {
+  const authedReq = req as AuthedRequest;
+  authedReq.user = authedReq.session.user;
   const {
       startEpoch,
       endEpoch,
@@ -600,23 +592,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               if (record.operational === "Operational") userStats.operationalActivities++;
               else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
             }
-            if (includeZeroAttendance) {
-            const allUsers = await usersCollection.find({}).toArray();
-            for (const user of allUsers) {
-              if (!usersWithRecords.has(user.id)) {
-                userNoAttendanceDataMap.set(user.id, {
-                  name: user.id,
-                  memberNumber: user.number || '',
-                  status: user.member_status,
-                  Membership_Classification: user.membership_classification,
-                  membership_type: user.membership_type,
-                  operationalActivities: 0,
-                  nonOperationalActivities: 0,
-                  records: []
-                  });
-                }
-              } 
-            }
           }
           else if(detailed === true){
             if (!userDataMap.has(userName)) {
@@ -646,25 +621,25 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
                 ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
               });
             }
-            if (includeZeroAttendance) {
-              const allUsers = await usersCollection.find({}).toArray();
-              for (const user of allUsers) {
-                if (!usersWithRecords.has(user.id)) {
-                  console.log("!users with records has user id")
-                  userNoAttendanceDataMap.set(user.id, {
-                    name: user.id,
-                    memberNumber: user.number || '',
-                    status: user.member_status,
-                    Membership_Classification: user.membership_classification,
-                    membership_type: user.membership_type,
-                    records: []
-                  });
-                }
-              } 
-            }
             }
         }
-
+        if (includeZeroAttendance) {
+          const allUsers = await usersCollection.find({}).toArray();
+          for (const user of allUsers) {
+            if (!usersWithRecords.has(user.id)) {
+              userNoAttendanceDataMap.set(user.id, {
+                name: user.id,
+                memberNumber: user.number || '',
+                status: user.member_status,
+                Membership_Classification: user.membership_classification,
+                membership_type: user.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+                });
+              }
+            } 
+          }
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Report');
         if(detailed === false){
@@ -734,21 +709,21 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               record.timestampLocal
             ];
             worksheet.addRow(row);
+            }
           }
-          userNoAttendanceDataMap.forEach((user: any) =>{
-            let row:(string | number)[] = []
-            row = [
-              user.name,
-              user.memberNumber,
-              user.status,
-              user.Membership_Classification,
-              user.membership_type,
-              "Zero Attendance"
-            ]
-            worksheet.addRow(row)
-          })
-        }
-      });
+        });
+        userNoAttendanceDataMap.forEach((user: any) =>{
+          let row:(string | number)[] = []
+          row = [
+            user.name,
+            user.memberNumber,
+            user.status,
+            user.Membership_Classification,
+            user.membership_type,
+            "Zero Attendance"
+          ]
+          worksheet.addRow(row)
+        })
 
       const fallbackFormat = (epoch: number) => new Date(epoch).toISOString().slice(0, 10).replace(/-/g, '');
       const fileStart = formattedStart || fallbackFormat(startEpoch);
