@@ -52,11 +52,11 @@ export default function Users() {
   const handleEditClick = (user) => {
     setEditingUser({
       ...user,
-      oldfzNumber: user.number,
-      oldName: user.id,
-      name: user.id,
+      oldfzNumber: user.id,
+      oldName: user.name,
+      name: user.name,
     });
-    setEditingNumber(user.number);
+    setEditingNumber(user.id);
   };
 
   const handleEditChange = (field, value) => {
@@ -65,7 +65,7 @@ export default function Users() {
 
   const handleSave = () => {
     const sanitizedName = sanitize(editingUser.name, "name");
-    const sanitizedNumber = sanitize(editingUser.number, "fzNumber");
+    const sanitizedNumber = sanitize(editingUser.id, "fzNumber");
 
     const updatedData = {
       oldname: editingUser.oldName,
@@ -104,9 +104,9 @@ export default function Users() {
     setEditingNumber(null);
   };
 
-  const handleUserCheckbox = (number) => {
+  const handleUserCheckbox = (id) => {
     const newSet = new Set(selectedUsers);
-    newSet.has(number) ? newSet.delete(number) : newSet.add(number);
+    newSet.has(id) ? newSet.delete(id) : newSet.add(id);
     setSelectedUsers(newSet);
   };
 
@@ -124,7 +124,7 @@ export default function Users() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          setUsers(prev => prev.filter(u => !selectedUsers.has(u.number)));
+          setUsers(prev => prev.filter(u => !selectedUsers.has(u.id)));
           setSelectedUsers(new Set());
           setSuccessMessage(data.message || "Users deleted successfully.");
           setTimeout(() => {
@@ -164,12 +164,12 @@ export default function Users() {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.number}>
-                <td><input type="checkbox" checked={selectedUsers.has(user.number)} onChange={() => handleUserCheckbox(user.number)} /></td>
-                {editingNumber === user.number ? (
+              <tr key={user.id}>
+                <td><input type="checkbox" checked={selectedUsers.has(user.id)} onChange={() => handleUserCheckbox(user.id)} /></td>
+                {editingNumber === user.id ? (
                   <>
                     <td><input value={editingUser.name} onChange={e => handleEditChange("name", e.target.value)} /></td>
-                    <td><input value={editingUser.number} onChange={e => handleEditChange("number", e.target.value)} /></td>
+                    <td><input value={editingUser.id} onChange={e => handleEditChange("id", e.target.value)} /></td>
                     <td>
                       <select value={editingUser.member_status} onChange={e => handleEditChange("member_status", e.target.value)}>
                         <option value="Active">Active</option>
@@ -198,8 +198,8 @@ export default function Users() {
                   </>
                 ) : (
                   <>
+                    <td>{user.name}</td>
                     <td>{user.id}</td>
-                    <td>{user.number}</td>
                     <td>{user.member_status}</td>
                     <td>{user.membership_classification}</td>
                     <td>{user.membership_type}</td>

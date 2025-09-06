@@ -44,6 +44,7 @@ export default function Reports({ users = [] }) {
       useEffect(() => {
           if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
         }, [csrfToken]);
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     startTime: '',
     endTime: '',
@@ -52,11 +53,7 @@ export default function Reports({ users = [] }) {
     operational: '',
     includeZeroAttendance: false,
     detailed: false,
-    incidentType: '',
-    deploymentArea: '',
-    baType: '',
-    chainsawType: '',
-    otherType: ''
+    incidentType: ''
   });
   const [activities, setActivities] = useState(activityOptions.Any);
   const [reportHTML, setReportHTML] = useState('');
@@ -101,19 +98,16 @@ export default function Reports({ users = [] }) {
         endEpoch,
         name: form.name,
         activity: form.activity,
-        operational: form.operational,
-        deploymentType: form.deploymentType,
-        deploymentArea: form.deploymentArea,
-        baType: form.baType,
-        chainsawType: form.chainsawType,
-        otherType: form.otherType,
+        operational: form.operational
       }),
     });
 
     const result = await res.json();
-    console.log(result)
-    if (!result.count) {
-      setReportHTML('<div class="alert alert-warning">No records found for the selected filters.</div>');
+    if (!res.ok) {
+      setErrorMessage("An error has occured please check your filters and try again")
+      setTimeout(() => {
+        setErrorMessage(null)
+      }, 2000);
     } else {
       const hasActivityType =
         result.records.some(r => r.deploymentType || r.baType || r.chainsawType || r.otherType)
@@ -173,28 +167,31 @@ export default function Reports({ users = [] }) {
         includeZeroAttendance: form.includeZeroAttendance,
         detailed: form.detailed,
         formattedStart,
-        formattedEnd,
-        DeploymentType: form.incidentType,
-        deploymentArea: form.deploymentArea,
-        baType: form.baType,
-        chainsawType: form.chainsawType,
-        otherType: form.otherType
+        formattedEnd
       }),
     });
-
-    const blob = await res.blob();
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `member-attendance-report-${formattedStart}-${formattedEnd}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    
+    if(!res.ok){
+      setErrorMessage("An error has occured please check your filters and try again")
+      setTimeout(() => {
+        setErrorMessage(null)
+      }, 2000);
+    } else{
+      const blob = await res.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `member-attendance-report-${formattedStart}-${formattedEnd}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
   };
   useTitle('Attendance Reports');
   return (
     <>
       <div className="container mt-5">
         <h1 className="mb-4">Reports</h1>
+        {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
         <div className="card p-4 mb-4">
           <form className="row g-3" onSubmit={runReport}>
             <div className="col-auto">
@@ -209,7 +206,7 @@ export default function Reports({ users = [] }) {
               <label className="form-label">Name</label>
               <select className="form-select" name="name" value={form.name} onChange={handleChange}>
                 <option value="">Any</option>
-                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.id}</option>)}
+                {userOptions.map((u) => <option key={u.name} value={u.name}>{u.name}</option>)}
               </select>
             </div>
             <div className="col-md-2">

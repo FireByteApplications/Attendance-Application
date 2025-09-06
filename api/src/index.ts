@@ -14,8 +14,14 @@ import helmet from 'helmet';
 import { promisify } from 'util';
 import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
-import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import { sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import { errorHandler } from './middleware/errorHandle'
+import fs from 'fs';
+import https from 'https';
+import path from 'node:path';
+
 dotenv.config();
+
 const app = express();
 const port = process.env.PORT || 8080;
 const DB_NAME = process.env.DB_NAME;
@@ -298,7 +304,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
     try {
-      const users = await usersCollection.find({}, { projection: { id: 1, _id: 0 } }).toArray();
+      const users = await usersCollection.find({}, { projection: { name: 1, _id: 0 } }).toArray();
       res.status(200).json(users);
       return;
     } catch (err) {
@@ -321,14 +327,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     return;
     }
 
-    const id = `${firstName} ${lastName}`;
+    const name = `${firstName} ${lastName}`;
     const username = `${firstName}.${lastName}`;
 
     try {
       const result = await usersCollection.insertOne({
-        id,
+        name,
         username,
-        number: fireZoneNumber,
+        id: fireZoneNumber,
         member_status: Status,
         membership_classification: Classification,
         membership_type: Type,
@@ -360,7 +366,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
     try {
-      const deleteResult = await usersCollection.deleteMany({ number: { $in: numbers } });
+      const deleteResult = await usersCollection.deleteMany({ id: { $in: numbers } });
       if (deleteResult.deletedCount === 0) {
         res.status(404).json({success: false, message: 'No users found with those fire zone numbers' });
         return;
@@ -384,9 +390,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const [firstname, ...lastnameArr] = name.split(' ');
       const lastname = lastnameArr.join(' ');
       const updatedUser = {
-        id: name,
+        name: name,
         username: `${firstname}.${lastname}`,
-        number: fzNumber,
+        id: fzNumber,
         member_status: memberStatus,
         membership_classification: memberClassification,
         membership_type: memberType,
@@ -394,7 +400,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       try {
         const updateUser = await usersCollection.findOneAndUpdate(
-          { number: oldfzNumber },
+          { id: oldfzNumber },
           { $set: updatedUser },
           { returnDocument: 'after' }
         );
@@ -508,7 +514,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/run', requireAdmin, reportRun)
+  app.post('/api/reports/run', sanitizeReportingRunInput, requireAdmin, reportRun)
 
 
   const reportExport: RequestHandler = async (req, res) => {
@@ -523,11 +529,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       includeZeroAttendance,
       detailed,
       formattedStart,
-      formattedEnd,
-      deploymentType,
-      deploymentLocation,
-      baType,
-      chainsawType
+      formattedEnd
     } = req.body;
 
     try {
@@ -538,18 +540,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         if (name) query.name = name;
         if (activity) query.activity = activity;
         if (operational) query.operational = operational;
-
-        if (activity === "Deployment") {
-          if (deploymentType) query.deploymentType = deploymentType;
-          if (deploymentLocation) query.deploymentLocation = deploymentLocation;
-        }
-
-        if (activity === "BA-Checks" && baType) {
-          query.baType = baType;
-        }
-        if (activity === "Chainsaw-Type" && chainsawType){
-          query.chainsawType = chainsawType;
-        }
 
         const MAX_ROWS = 50000;
         const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
@@ -568,11 +558,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           usersWithRecords.add(userName);
           if(detailed === false){
             if (!userDataMap.has(userName)) {
-            const userDetails = await usersCollection.findOne({ id: userName });
+            const userDetails = await usersCollection.findOne({ name: userName });
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
-                memberNumber: userDetails.number || '',
+                memberNumber: userDetails.id || '',
                 status: userDetails.member_status,
                 Membership_Classification: userDetails.membership_classification,
                 membership_type: userDetails.membership_type,
@@ -601,11 +591,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           }
           else if(detailed === true){
             if (!userDataMap.has(userName)) {
-            const userDetails = await usersCollection.findOne({ id: userName });
+            const userDetails = await usersCollection.findOne({ name: userName });
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
-                memberNumber: userDetails.number || '',
+                memberNumber: userDetails.id || '',
                 status: userDetails.member_status,
                 Membership_Classification: userDetails.membership_classification,
                 membership_type: userDetails.membership_type,
@@ -632,10 +622,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         if (includeZeroAttendance) {
           const allUsers = await usersCollection.find({}).toArray();
           for (const user of allUsers) {
-            if (!usersWithRecords.has(user.id)) {
-              userNoAttendanceDataMap.set(user.id, {
-                name: user.id,
-                memberNumber: user.number || '',
+            if (!usersWithRecords.has(user.name)) {
+              userNoAttendanceDataMap.set(user.name, {
+                name: user.name,
+                memberNumber: user.id || '',
                 status: user.member_status,
                 Membership_Classification: user.membership_classification,
                 membership_type: user.membership_type,
@@ -747,7 +737,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/export', requireAdmin, reportExport)
+  app.post('/api/reports/export', sanitizeReportingExportInput, requireAdmin, reportExport)
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
@@ -839,12 +829,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/attendance/usernameList',  listNames)
 
-app.use(
-  (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('Unhandled', err.message);
-    res.status(500).json({ message: 'Internal server error' });
-  },
-);
+app.use(errorHandler);
 
   app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
