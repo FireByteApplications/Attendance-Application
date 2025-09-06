@@ -40,12 +40,11 @@ const activityOptions = {
 };
 
 export default function Reports({ users = [] }) {
-  //get a csrf token from api
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
           if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
         }, [csrfToken]);
-  //set form defaults as empty
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     startTime: '',
     endTime: '',
@@ -53,17 +52,13 @@ export default function Reports({ users = [] }) {
     activity: '',
     operational: '',
     includeZeroAttendance: false,
-    incidentType: '',
-    deploymentArea: '',
-    baType: '',
-    chainsawType: '',
-    otherType: ''
+    detailed: false,
+    incidentType: ''
   });
-  //define variables for options
   const [activities, setActivities] = useState(activityOptions.Any);
   const [reportHTML, setReportHTML] = useState('');
   const [userOptions, setUserOptions] = useState([]);
-  //fetch users from database matching query
+
   useEffect(() => {
     fetch(`${apiUrl}/api/users/names`, {
       method: "GET",
@@ -73,22 +68,24 @@ export default function Reports({ users = [] }) {
       .then(data => setUserOptions(data))
       .catch(console.error);
   }, []);
-  //set activities to user selection or fallback to any
+
   useEffect(() => {
     setActivities(activityOptions[form.operational || 'Any']);
   }, [form.operational]);
-  //data change handler for checkbox for including users with no attendance records
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    if(name === "detailedAttendance"){
+      form.detailed = checked
+    }
   };
-  //report running handler
+
   const runReport = async (e) => {
     e.preventDefault();
-    //define start and end date times converting from aest to epoch
     const startEpoch = moment.tz(form.startTime, "Australia/Sydney").valueOf();
     const endEpoch = moment.tz(form.endTime, "Australia/Sydney").valueOf();
-    //fetch for running on screen report
+
     const res = await fetch(`${apiUrl}/api/reports/run`, {
       method: 'POST',
       headers: { 
@@ -101,57 +98,59 @@ export default function Reports({ users = [] }) {
         endEpoch,
         name: form.name,
         activity: form.activity,
-        operational: form.operational,
-        DeploymentType: form.incidentType,
-        deploymentArea: form.deploymentArea,
-        baType: form.baType,
-        chainsawType: form.chainsawType,
-        otherType: form.otherType
+        operational: form.operational
       }),
     });
 
     const result = await res.json();
-    if (!result.count) {
-      setReportHTML('<div class="alert alert-warning">No records found for the selected filters.</div>');
+    if (!res.ok) {
+      setErrorMessage("An error has occured please check your filters and try again")
+      setTimeout(() => {
+        setErrorMessage(null)
+      }, 2000);
     } else {
-      //first table row adds headers for certain activities with extra fields
-      const html = `
+      const hasActivityType =
+        result.records.some(r => r.deploymentType || r.baType || r.chainsawType || r.otherType)
+      const hasActivityLocation = 
+      result.records.some(r => r.deploymentLocation)
+      const html =`
         <h3 class="mb-3">Found ${result.count} record(s)</h3>
         <table class="table table-bordered">
           <thead>
             <tr>
               <th>Timestamp</th><th>Name</th><th>Operational</th><th>Activity</th>
-              ${form.activity === 'Deployment' ? '<th>Incident Type</th><th>Deployment Area</th>' : ''}
-              ${form.activity === 'BA-Checks' ? '<th>BA Type</th>' : ''}
-              ${form.activity === 'Chainsaw-Checks' ? '<th>Chainsaw Type</th>' : ''}
-              ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? '<th>Other Activity</th>' : ''}
+              ${form.detailed === true && hasActivityType ? `
+              <th>Activity Detail</th>` : ''}
+              ${form.detailed == true && hasActivityLocation ? `
+              <th>Activity Location</th>` : ''}
             </tr>
           </thead>
           <tbody>
-            ${result.records.map((r) => `
+            ${result.records.map((r) => 
+              `
               <tr>
                 <td>${moment.tz(r.epochTimestamp, "Australia/Sydney").format("DD-MM-YYYY HH:mm")}</td>
                 <td>${r.name}</td>
                 <td>${r.operational}</td>
                 <td>${r.activity}</td>
-                ${form.activity === 'Deployment' ? `<td>${r.deploymentType || ''}</td><td>${r.deploymentLocation || ''}</td>` : ''}
-                ${form.activity === 'BA-Checks' ? `<td>${r.baType || ''}</td>` : ''}
-                ${form.activity === 'Chainsaw-Checks' ? `<td>${r.chainsawType || ''}</td>` : ''}
-                ${form.activity === 'Other-Non-operational' || form.activity === 'Other-operational' ? `<td>${r.otherType || ''}</td>` : ''}
+                ${form.detailed === true && hasActivityType ? `
+                <td>${r.deploymentType || r.baType || r.chainsawType || r.otherType || ''}</td>` : ''}
+                ${form.detailed === true && hasActivityLocation ?`
+                <td>${r.deploymentLocation || ''}</td>` : ''}
               </tr>`).join('')}
           </tbody>
         </table>`;
       setReportHTML(html);
     }
   };
-  //handler to export the selected data to an excel sheet
+
   const exportExcel = async (e) => {
     e.preventDefault();
     const start = moment.tz(form.startTime, "Australia/Sydney");
     const end = moment.tz(form.endTime, "Australia/Sydney");
     const formattedStart = start.format('YYYYMMDD');
     const formattedEnd = end.format('YYYYMMDD');
-    //fetch for excel export
+
     const res = await fetch(`${apiUrl}/api/reports/export`, {
       method: 'POST',
       headers: { 
@@ -166,29 +165,33 @@ export default function Reports({ users = [] }) {
         activity: form.activity,
         operational: form.operational,
         includeZeroAttendance: form.includeZeroAttendance,
+        detailed: form.detailed,
         formattedStart,
-        formattedEnd,
-        DeploymentType: form.incidentType,
-        deploymentArea: form.deploymentArea,
-        baType: form.baType,
-        chainsawType: form.chainsawType,
-        otherType: form.otherType
+        formattedEnd
       }),
     });
-    //create blob for excel file
-    const blob = await res.blob();
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `member-attendance-report-${formattedStart}-${formattedEnd}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    
+    if(!res.ok){
+      setErrorMessage("An error has occured please check your filters and try again")
+      setTimeout(() => {
+        setErrorMessage(null)
+      }, 2000);
+    } else{
+      const blob = await res.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `member-attendance-report-${formattedStart}-${formattedEnd}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
   };
   useTitle('Attendance Reports');
   return (
     <>
       <div className="container mt-5">
         <h1 className="mb-4">Reports</h1>
+        {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
         <div className="card p-4 mb-4">
           <form className="row g-3" onSubmit={runReport}>
             <div className="col-auto">
@@ -203,7 +206,7 @@ export default function Reports({ users = [] }) {
               <label className="form-label">Name</label>
               <select className="form-select" name="name" value={form.name} onChange={handleChange}>
                 <option value="">Any</option>
-                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.id}</option>)}
+                {userOptions.map((u) => <option key={u.name} value={u.name}>{u.name}</option>)}
               </select>
             </div>
             <div className="col-md-2">
@@ -224,6 +227,10 @@ export default function Reports({ users = [] }) {
             <div className="form-check mt-3">
               <input type="checkbox" className="form-check-input" name="includeZeroAttendance" checked={form.includeZeroAttendance} onChange={handleChange} />
               <label className="form-check-label">Include users with 0 attendance</label>
+            </div>
+            <div className="form-check form-switch">
+              <input className="form-check-input" type="checkbox" role="switch" name="detailedAttendance" onChange={handleChange}></input>
+              <label className="form-check-label">Member attendance detailed</label>
             </div>
             <div className="col-12 mt-3">
               <button type="submit" className="btn btn-primary me-2">Run Report</button>

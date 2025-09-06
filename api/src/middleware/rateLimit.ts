@@ -8,7 +8,7 @@ export const authLimiter = rateLimit({
 });
 export const attendanceLimiter = rateLimit({
   windowMs: 60_000,
-  max: 50,
+  max: 150,
   standardHeaders: true,
   legacyHeaders: false,
 });

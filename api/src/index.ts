@@ -14,7 +14,11 @@ import helmet from 'helmet';
 import { promisify } from 'util';
 import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
-import { sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import { sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import { errorHandler } from './middleware/errorHandle'
+import fs from 'fs';
+import https from 'https';
+import path from 'node:path';
 
 dotenv.config();
 
@@ -300,7 +304,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
     try {
-      const users = await usersCollection.find({}, { projection: { id: 1, _id: 0 } }).toArray();
+      const users = await usersCollection.find({}, { projection: { name: 1, _id: 0 } }).toArray();
       res.status(200).json(users);
       return;
     } catch (err) {
@@ -323,14 +327,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     return;
     }
 
-    const id = `${firstName} ${lastName}`;
+    const name = `${firstName} ${lastName}`;
     const username = `${firstName}.${lastName}`;
 
     try {
       const result = await usersCollection.insertOne({
-        id,
+        name,
         username,
-        number: fireZoneNumber,
+        id: fireZoneNumber,
         member_status: Status,
         membership_classification: Classification,
         membership_type: Type,
@@ -362,7 +366,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
     try {
-      const deleteResult = await usersCollection.deleteMany({ number: { $in: numbers } });
+      const deleteResult = await usersCollection.deleteMany({ id: { $in: numbers } });
       if (deleteResult.deletedCount === 0) {
         res.status(404).json({success: false, message: 'No users found with those fire zone numbers' });
         return;
@@ -386,9 +390,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const [firstname, ...lastnameArr] = name.split(' ');
       const lastname = lastnameArr.join(' ');
       const updatedUser = {
-        id: name,
+        name: name,
         username: `${firstname}.${lastname}`,
-        number: fzNumber,
+        id: fzNumber,
         member_status: memberStatus,
         membership_classification: memberClassification,
         membership_type: memberType,
@@ -396,7 +400,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       try {
         const updateUser = await usersCollection.findOneAndUpdate(
-          { number: oldfzNumber },
+          { id: oldfzNumber },
           { $set: updatedUser },
           { returnDocument: 'after' }
         );
@@ -464,6 +468,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       deploymentType,
       deploymentLocation,
       baType,
+      chainsawType
     } = req.body;
 
     try {
@@ -490,6 +495,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         query.baType = baType;
       }
 
+      if(activity == "Chainsaw-Checks" && chainsawType){
+        query.chainsawType = chainsawType;
+      }
+
       const result = await recordsCollection.find(query).toArray();
 
       const transformed = result.map(record => ({
@@ -505,12 +514,12 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/run', requireAdmin, reportRun)
+  app.post('/api/reports/run', sanitizeReportingRunInput, requireAdmin, reportRun)
 
 
-    const reportExport: RequestHandler = async (req, res) => {
-    const authedReq = req as AuthedRequest;
-    authedReq.user = authedReq.session.user;
+  const reportExport: RequestHandler = async (req, res) => {
+  const authedReq = req as AuthedRequest;
+  authedReq.user = authedReq.session.user;
   const {
       startEpoch,
       endEpoch,
@@ -518,141 +527,199 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       activity,
       operational,
       includeZeroAttendance,
+      detailed,
       formattedStart,
-      formattedEnd,
-      deploymentType,
-      deploymentLocation,
-      baType,
+      formattedEnd
     } = req.body;
 
     try {
-      const query: any = {
-        epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
-      };
+        const query: any = {
+          epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
+        };
 
-      if (name) query.name = name;
-      if (activity) query.activity = activity;
-      if (operational) query.operational = operational;
+        if (name) query.name = name;
+        if (activity) query.activity = activity;
+        if (operational) query.operational = operational;
 
-      if (activity === "Deployment") {
-        if (deploymentType) query.deploymentType = deploymentType;
-        if (deploymentLocation) query.deploymentLocation = deploymentLocation;
-      }
+        const MAX_ROWS = 50000;
+        const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
+        const records = await recordsCursor.toArray();
+        if (records.length > MAX_ROWS) {
+          res
+          .status(413)
+          .json({ error: 'Result too large. Narrow date range or filters.' });
+          return;
+        }
+        const userDataMap = new Map<string, any>();
+        const userNoAttendanceDataMap = new Map<string, any>();
+        const usersWithRecords = new Set<string>();
+        for (const record of records) {
+          const userName = record.name;
+          usersWithRecords.add(userName);
+          if(detailed === false){
+            if (!userDataMap.has(userName)) {
+            const userDetails = await usersCollection.findOne({ name: userName });
+            if (userDetails) {
+              userDataMap.set(userName, {
+                name: userName,
+                memberNumber: userDetails.id || '',
+                status: userDetails.member_status,
+                Membership_Classification: userDetails.membership_classification,
+                membership_type: userDetails.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+                });
+              }
+            }
+            const userStats = userDataMap.get(userName);
+            if (userStats) {
+              userStats.records.push({
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                operational: record.operational,
+                activity: record.activity,
+                ...(record.baType && { baType: record.baType }),
+                ...(record.chainsawType && { chainsawType: record.chainsawType }),
+                ...(record.deploymentType && { deploymentType: record.deploymentType }),
+                ...(record.otherType && { otherType: record.otherType }),
+                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+              });
 
-      if (activity === "BA-Checks" && baType) {
-        query.baType = baType;
-      }
-
-      const MAX_ROWS = 50000;
-      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
-      const records = await recordsCursor.toArray();
-
-      if (records.length > MAX_ROWS) {
-        res
-        .status(413)
-        .json({ error: 'Result too large. Narrow date range or filters.' });
-        return;
-      }
-      const userDataMap = new Map<string, any>();
-      const usersWithRecords = new Set<string>();
-
-      for (const record of records) {
-        const userName = record.name;
-        usersWithRecords.add(userName);
-
-        if (!userDataMap.has(userName)) {
-          const userDetails = await usersCollection.findOne({ id: userName });
-          if (userDetails) {
-            userDataMap.set(userName, {
-              name: userName,
-              memberNumber: userDetails.number || '',
-              status: userDetails.member_status,
-              Membership_Classification: userDetails.membership_classification,
-              membership_type: userDetails.membership_type,
-              operationalActivities: 0,
-              nonOperationalActivities: 0,
-              records: []
-            });
+              if (record.operational === "Operational") userStats.operationalActivities++;
+              else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
+            }
           }
+          else if(detailed === true){
+            if (!userDataMap.has(userName)) {
+            const userDetails = await usersCollection.findOne({ name: userName });
+            if (userDetails) {
+              userDataMap.set(userName, {
+                name: userName,
+                memberNumber: userDetails.id || '',
+                status: userDetails.member_status,
+                Membership_Classification: userDetails.membership_classification,
+                membership_type: userDetails.membership_type,
+                records: []
+                });
+              }
+              
+              }
+            const userStats = userDataMap.get(userName);
+            if (userStats) {
+              userStats.records.push({
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                operational: record.operational,
+                activity: record.activity,
+                ...(record.baType && { baType: record.baType }),
+                ...(record.chainsawType && { chainsawType: record.chainsawType }),
+                ...(record.deploymentType && { deploymentType: record.deploymentType }),
+                ...(record.otherType && { otherType: record.otherType }),
+                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+              });
+            }
+            }
         }
-
-        const userStats = userDataMap.get(userName);
-        if (userStats) {
-          userStats.records.push({
-            timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
-            operational: record.operational,
-            activity: record.activity,
-            ...(record.baType && { baType: record.baType }),
-            ...(record.deploymentType && { deploymentType: record.deploymentType }),
-            ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
-          });
-
-          if (record.operational === "Operational") userStats.operationalActivities++;
-          else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
-        }
-      }
-
-      if (includeZeroAttendance) {
-        const allUsers = await usersCollection.find({}).toArray();
-        for (const user of allUsers) {
-          if (!usersWithRecords.has(user.id)) {
-            userDataMap.set(user.id, {
-              name: user.id,
-              memberNumber: user.number || '',
-              status: user.member_status,
-              Membership_Classification: user.membership_classification,
-              membership_type: user.membership_type,
-              operationalActivities: 0,
-              nonOperationalActivities: 0,
-              records: []
-            });
+        if (includeZeroAttendance) {
+          const allUsers = await usersCollection.find({}).toArray();
+          for (const user of allUsers) {
+            if (!usersWithRecords.has(user.name)) {
+              userNoAttendanceDataMap.set(user.name, {
+                name: user.name,
+                memberNumber: user.id || '',
+                status: user.member_status,
+                Membership_Classification: user.membership_classification,
+                membership_type: user.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+                });
+              }
+            } 
           }
-        }
-      }
-
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Report');
-
-      const header = [
-        'Name',
-        'Member number',
-        'Status',
-        'Membership Classification',
-        'membership_type',
-        'Operational activities',
-        'Non-operational activities',
-      ];
-
-      if (activity === "BA-Checks") header.push('BA Type');
-      if (activity === "Deployment") {
-        header.push('Deployment Type', 'Deployment Location');
-      }
-
-      worksheet.addRow(header);
-
-      userDataMap.forEach((user: any) => {
-        const row = [
-          user.name,
-          user.memberNumber,
-          user.status,
-          user.Membership_Classification,
-          user.membership_type,
-          user.operationalActivities,
-          user.nonOperationalActivities,
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Report');
+        if(detailed === false){
+          const header = [
+          'Name',
+          'Member number',
+          'Status',
+          'Membership Classification',
+          'membership_type',
+          'Operational activities',
+          'Non-operational activities',
         ];
-
-        if (activity === "BA-Checks") {
-          const baType = user.records.find((r: any) => r.baType)?.baType || '';
-          row.push(baType);
+        worksheet.addRow(header);
+        } else if(detailed === true){
+          const header = [
+          'Name',
+          'Member number',
+          'Status',
+          'Membership Classification',
+          'membership_type',
+          'Operational',
+          'Activity',
+          'Activity Detail',
+          'Activity Location',
+          'timestamp'
+        ];
+        worksheet.addRow(header);
         }
-        if (activity === "Deployment") {
-          const deploymentType = user.records.find((r: any) => r.deploymentType)?.deploymentType || '';
-          const deploymentLocation = user.records.find((r: any) => r.deploymentLocation)?.deploymentLocation || '';
-          row.push(deploymentType, deploymentLocation);
-        }
 
-        worksheet.addRow(row);
-      });
+        userDataMap.forEach((user: any) => {
+          let row:(string | number)[] = []
+          if(detailed === false){
+            row = [
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              user.operationalActivities,
+              user.nonOperationalActivities 
+            ]
+            worksheet.addRow(row)
+          } else if(detailed === true) {
+           for (const record of user.records) {
+            let activityType = "";
+            let activityLocation = "";
+            if (record.activity === "BA-Checks") {
+              activityType = record.baType || "";
+            } else if (record.activity === "Chainsaw-Checks") {
+              activityType = record.chainsawType || "";
+            } else if (record.activity === "Other-Non-operational" || record.activity === "Other-operational") {
+              activityType = record.otherType || "";
+            } else if (record.activity === "Deployment") {
+              activityType = record.deploymentType || "";
+              activityLocation = record.deploymentLocation || "";
+            }
+            const row = [
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              record.operational,
+              record.activity,
+              activityType,
+              activityLocation,
+              record.timestampLocal
+            ];
+            worksheet.addRow(row);
+            }
+          }
+        });
+        userNoAttendanceDataMap.forEach((user: any) =>{
+          let row:(string | number)[] = []
+          row = [
+            user.name,
+            user.memberNumber,
+            user.status,
+            user.Membership_Classification,
+            user.membership_type,
+            "Zero Attendance"
+          ]
+          worksheet.addRow(row)
+        })
 
       const fallbackFormat = (epoch: number) => new Date(epoch).toISOString().slice(0, 10).replace(/-/g, '');
       const fileStart = formattedStart || fallbackFormat(startEpoch);
@@ -670,7 +737,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/export', requireAdmin, reportExport)
+  app.post('/api/reports/export', sanitizeReportingExportInput, requireAdmin, reportExport)
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
@@ -683,6 +750,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
     const exists = await usersCollection.findOne({ username });
       if (!exists){
+        console.log(username)
         res.status(404).json({ ok: false });
         return;}
     req.session.validUsername = username;               // 🔑 remember validation in this session
@@ -761,12 +829,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/attendance/usernameList',  listNames)
 
-app.use(
-  (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('Unhandled', err.message);
-    res.status(500).json({ message: 'Internal server error' });
-  },
-);
+app.use(errorHandler);
 
   app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
