@@ -130,7 +130,9 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     endEpoch,
     name,
     activity,
-    operational
+    operational,
+    detailed,
+    includeZeroAttendance
   } = req.body ?? {};
 
   const asTrimmedString = (v: unknown) => validator.trim(String(v ?? ''));
@@ -139,6 +141,8 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     name: asTrimmedString(name),
     operational: asTrimmedString(operational),
     activity: asTrimmedString(activity),
+    detailed: parseBoolean(detailed),
+    includeZeroAttendance: parseBoolean(includeZeroAttendance)
   };
 
   const validators = [
