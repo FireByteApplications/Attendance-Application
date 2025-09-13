@@ -656,7 +656,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             }
             }
         }
-        if (includeZeroAttendance) {
+        if (detailed === false && includeZeroAttendance) {
           const allUsers = await usersCollection.find({}).toArray();
           for (const user of allUsers) {
             if (!usersWithRecords.has(user.name)) {
