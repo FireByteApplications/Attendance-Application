@@ -69,8 +69,8 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
   };
 
   const validators = [
-    { value: sanitized.oldname, pattern: /^[a-zA-Z-\s-]+$/, field: 'Old Name' },
-    { value: sanitized.name, pattern: /^[a-zA-Z-\s-]+$/, field: 'Name' },
+    { value: sanitized.oldname, pattern: /^[a-zA-Z-\s]+$/, field: 'Old Name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z-\s]+$/, field: 'Name' },
     { value: sanitized.oldfzNumber, pattern: /^\d{1,9}?$/, field: 'Old Firezone Number' },
     { value: sanitized.fzNumber, pattern: /^\d{1,9}?$/, field: 'FireZone Number' },
     { value: sanitized.memberStatus, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
@@ -130,7 +130,9 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     endEpoch,
     name,
     activity,
-    operational
+    operational,
+    detailed,
+    includeZeroAttendance
   } = req.body ?? {};
 
   const asTrimmedString = (v: unknown) => validator.trim(String(v ?? ''));
@@ -139,6 +141,8 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     name: asTrimmedString(name),
     operational: asTrimmedString(operational),
     activity: asTrimmedString(activity),
+    detailed: parseBoolean(detailed),
+    includeZeroAttendance: parseBoolean(includeZeroAttendance)
   };
 
   const validators = [

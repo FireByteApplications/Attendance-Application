@@ -16,10 +16,6 @@ import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateL
 import MongoStore from 'connect-mongo';
 import { sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 import { errorHandler } from './middleware/errorHandle'
-import fs from 'fs';
-import https from 'https';
-import path from 'node:path';
-
 dotenv.config();
 
 const app = express();
@@ -199,7 +195,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       /* regenerate session ID */
       await promisify(req.session.regenerate.bind(req.session))();
 
-      /* store user data on the fresh session */
       req.session.user = {
         email: profile.mail ?? profile.userPrincipalName,
         name: profile.displayName,
@@ -208,7 +203,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       };
       req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour
 
-      /* 5. persist & redirect */
+      /* persist & redirect */
       await promisify(req.session.save.bind(req.session))();
 
       const url = new URL(`${FRONTEND_URL}`);
@@ -269,15 +264,12 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
-        res.clearCookie('connect.sid'); // The session cookie, if using express-session
+        res.clearCookie('connect.sid');
 
-        // Optionally, also log out from Microsoft
-        // Construct a post_logout_redirect_uri to send the user back to your frontend
         const postLogoutRedirect = encodeURIComponent(process.env.POST_LOGOUT_URL!);
         const logoutUrl =
           `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/logout?post_logout_redirect_uri=${postLogoutRedirect}`;
 
-        // Redirect user to Microsoft logout (logs them out of Azure, then returns to your site)
         res.redirect(logoutUrl);
       });
   };
@@ -420,7 +412,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         }
 
         if (userOk && !recordOk) {
-          // <-- your requested case: user updated, no records found
           return res.status(200).json({
             success: true,
             message: "User updated. No records found to update.",
@@ -430,7 +421,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         }
 
         if (!userOk && recordOk) {
-          // You can choose 200 (partial success) or 404 (user not found). 200 is friendlier.
           return res.status(200).json({
             success: true,
             partial: true,
@@ -440,7 +430,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           });
         }
 
-        // Neither update happened
         return res.status(404).json({
           success: false,
           message: "No user or records found to update.",
@@ -465,12 +454,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       name,
       activity,
       operational,
-      deploymentType,
-      deploymentLocation,
-      baType,
-      chainsawType
+      detailed,
+      includeZeroAttendance
     } = req.body;
-
     try {
       const MAX_SPAN = 365 * 24 * 60 * 60 * 1000; // 1 year ms
     if (endEpoch - startEpoch > MAX_SPAN) {
@@ -481,33 +467,84 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const query: any = {
       epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
     };
-
       if (name) query.name = name;
       if (activity) query.activity = activity;
       if (operational) query.operational = operational;
-
-      if (activity === "Deployment") {
-        if (deploymentType) query.deploymentType = deploymentType;
-        if (deploymentLocation) query.deploymentLocation = deploymentLocation;
+      const MAX_ROWS = 50000;
+      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
+      const records = await recordsCursor.toArray();
+      if (records.length > MAX_ROWS) {
+        res
+        .status(413)
+        .json({ error: 'Result too large. Narrow date range or filters.' });
+        return;
       }
-
-      if (activity === "BA-Checks" && baType) {
-        query.baType = baType;
-      }
-
-      if(activity == "Chainsaw-Checks" && chainsawType){
-        query.chainsawType = chainsawType;
-      }
-
-      const result = await recordsCollection.find(query).toArray();
-
-      const transformed = result.map(record => ({
+      if(detailed === true){
+      const transformed = records.map(record => ({
         ...record,
-        timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm')
+        timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm')
       }));
-
       res.status(200).json({ count: transformed.length, records: transformed });
       return;
+    } else {
+      const userDataMap = new Map<string, any>();
+      const usersWithRecords = new Set<string>();
+       for (const record of records) {
+          const userName = record.name;
+          usersWithRecords.add(userName);
+            if (!userDataMap.has(userName)) {
+            const userDetails = await usersCollection.findOne({ name: userName });
+            if (userDetails) {
+              userDataMap.set(userName, {
+                name: userName,
+                memberNumber: userDetails.id || '',
+                status: userDetails.member_status,
+                membership_classification: userDetails.membership_classification,
+                membership_type: userDetails.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+                });
+              }
+            }
+            const userStats = userDataMap.get(userName);
+            if (userStats) {
+              userStats.records.push({
+                operational: record.operational,
+                activity: record.activity,
+              });
+              if (record.operational === "Operational") userStats.operationalActivities++;
+              else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
+            }
+            if (includeZeroAttendance) {
+            const allUsers = await usersCollection.find({}).toArray();
+            for (const user of allUsers) {
+              if (!usersWithRecords.has(user.name)) {
+                userDataMap.set(user.name, {
+                  name: user.name,
+                  memberNumber: user.id || '',
+                  status: user.member_status,
+                  membership_classification: user.membership_classification,
+                  membership_type: user.membership_type,
+                  operationalActivities: 0,
+                  nonOperationalActivities: 0,
+                  records: []
+                  });
+                }
+              } 
+            }
+        }
+      const dto = [...userDataMap].map(([user, v]) => ({
+        user,
+        memberNumber: v.memberNumber,
+        status: v.status,
+        membership_classification: v.membership_classification,
+        membership_type: v.membership_type,
+        operationalActivities: v.operationalActivities,
+        nonOperationalActivities: v.nonOperationalActivities,
+      }));
+      res.status(200).json(dto)
+    }
     } catch (error) {
       console.error('Unable to fetch records', (error as Error).message);
       res.status(500).json({ message: "Unable to fetch records" });
@@ -575,7 +612,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             const userStats = userDataMap.get(userName);
             if (userStats) {
               userStats.records.push({
-                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm'),
                 operational: record.operational,
                 activity: record.activity,
                 ...(record.baType && { baType: record.baType }),
@@ -607,7 +644,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             const userStats = userDataMap.get(userName);
             if (userStats) {
               userStats.records.push({
-                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('YYYY-MM-DD HH:mm'),
+                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm'),
                 operational: record.operational,
                 activity: record.activity,
                 ...(record.baType && { baType: record.baType }),
@@ -619,7 +656,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             }
             }
         }
-        if (includeZeroAttendance) {
+        if (detailed === false && includeZeroAttendance) {
           const allUsers = await usersCollection.find({}).toArray();
           for (const user of allUsers) {
             if (!usersWithRecords.has(user.name)) {
@@ -651,16 +688,16 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         worksheet.addRow(header);
         } else if(detailed === true){
           const header = [
+          'Timestamp',
           'Name',
           'Member number',
           'Status',
           'Membership Classification',
-          'membership_type',
+          'Membership type',
           'Operational',
           'Activity',
           'Activity Detail',
           'Activity Location',
-          'timestamp'
         ];
         worksheet.addRow(header);
         }
@@ -693,6 +730,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               activityLocation = record.deploymentLocation || "";
             }
             const row = [
+              record.timestampLocal,
               user.name,
               user.memberNumber,
               user.status,
@@ -701,8 +739,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               record.operational,
               record.activity,
               activityType,
-              activityLocation,
-              record.timestampLocal
+              activityLocation
             ];
             worksheet.addRow(row);
             }
@@ -761,7 +798,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/attendance/checkUser', CheckUsername)
 
-  // Session validation based on sanitized username
+
   const submitAttendance: RequestHandler = async (req, res) => {
   
   const spaceName = (req.body.name as string).trim();
@@ -829,6 +866,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/attendance/usernameList',  listNames)
 
+  
 app.use(errorHandler);
 
   app.listen(port, () => {
