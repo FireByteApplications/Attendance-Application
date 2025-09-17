@@ -574,9 +574,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
         };
 
-        if (name) query.name = name;
-        if (activity) query.activity = activity;
-        if (operational) query.operational = operational;
+        if (name) query.name = { $eq: name };
+        if (activity) query.activity = { $eq: activity };
+        if (operational) query.operational = { $eq: operational };
 
         const MAX_ROWS = 50000;
         const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
