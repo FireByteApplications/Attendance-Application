@@ -62,6 +62,7 @@ export default function OperationalPage() {
     }),
     ...(activity === "Other-operational" && { otherType })
   };
+    console.log(data)
 
     try {
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
@@ -103,7 +104,7 @@ export default function OperationalPage() {
             <button
               key={activity}
               type="button"
-              className={`btn ${selectedActivity === activity ? "btn-dark" : "btn-secondary"}`}
+              className={`btn ${selectedActivity === activity ? "btn-warning" : "btn-secondary"}`}
               onClick={() => handleSelect(activity)}
             >
               {activity.replace("-", " ")}

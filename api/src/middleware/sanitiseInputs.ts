@@ -247,7 +247,7 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
   }
   const startEpochMS = Number(startEpoch)
   const endEpochMS = Number(endEpoch)
-  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be bafter Jan 1 2023'})}
+  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be after Jan 1 2023'})}
   if (!isEpochMS(endEpochMS)){return res.status(400).json({message: 'End time must be before Dec 31 2100'})}
 
   const errors: string[] = [];

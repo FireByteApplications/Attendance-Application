@@ -105,10 +105,10 @@ export default function Reports({ users = [] }) {
     });
     const result = await res.json();
     if (!res.ok) {
-      setErrorMessage("An error has occured please check your filters and try again")
+      setErrorMessage("An error has occured: " + result.message)
       setTimeout(() => {
         setErrorMessage(null)
-      }, 2000);
+      }, 8000);
     } else {
         const isDetailed = !!form.detailed;
 

@@ -51,19 +51,34 @@ export default function OperationalPage() {
     username = username.replace(/\./g, " ");
 
     const activitySelection = 'Non-Operational'
+    let payloads;
 
-    const data = {
-      name: username,
-      operational: activitySelection,
-      activity,
-      epochTimestamp: dateObj.getTime(),
-    ...(activity === "BA-Checks" && { baType }),
-    ...(activity === "Chainsaw-Checks" && { chainsawType }),
-    ...(activity === "Other-Non-operational" && { otherType })
-  };
-
+    if (activity === "BA-Checks") {
+      payloads = 
+        baType === "All Vehicles"
+          ? ["Cat 1", "Pumper"]
+          : [baType]
+    } else if (activity === "Chainsaw-Checks") {
+        payloads =
+          chainsawType === "All Vehicles"
+            ? ["Cat 1", "Pumper", "Cat 9"]
+            :[chainsawType]
+    } else{
+      payloads = [null]
+    }
     try {
-      const response = await fetch(`${apiurl}/api/attendance/submit`, {
+      let finalresponse;
+      for (const type of payloads){    
+        const data = {
+        name: username,
+        operational: activitySelection,
+        activity,
+        epochTimestamp: dateObj.getTime(),
+      ...(activity === "BA-Checks" && { baType: type }),
+      ...(activity === "Chainsaw-Checks" && { chainsawType: type }),
+      ...(activity === "Other-Non-operational" && { otherType })
+        } 
+        const response = await fetch(`${apiurl}/api/attendance/submit`, {
         method: "POST",
         credentials: 'include',
         headers: {
@@ -72,26 +87,24 @@ export default function OperationalPage() {
         },
         body: JSON.stringify(data),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        alert(result.message || "An error occurred, please try again later.");
-        sessionStorage.clear();
-        navigate("/attendance/");
-        return;
-      }
+        if (!response.ok){
+          throw new Error("Insert Failed")
+        }
+        finalresponse = response
+      };
+      const result = await finalresponse.json();
 
       const message = encodeURIComponent("Attendance logged successfully!");
       const type = encodeURIComponent("success");
-      navigate(`/attendance?popupMessage=${message}&popupType=${type}`);
+      navigate(`/attendance?popupMessage=${message}&popupType=${type}`); 
     } catch (err) {
       console.error("Submission error:", err);
       alert("An error has occurred, please try again later.");
       sessionStorage.clear();
       navigate("/attendance");
-    }
+      }
   };
+
   useTitle('Non Operational Attendance');
   return (
     <div className={styles.attendanceBg}>     
@@ -102,7 +115,7 @@ export default function OperationalPage() {
             <button
               key={activity}
               type="button"
-              className={`btn ${selectedActivity === activity ? "btn-dark" : "btn-secondary"}`}
+              className={`btn ${selectedActivity === activity ? "btn-warning" : "btn-secondary"}`}
               onClick={() => handleSelect(activity)}
             >
               {activity.replace("-", " ")}
@@ -127,6 +140,7 @@ export default function OperationalPage() {
               <option value="">Select Option</option>
               <option value="Cat 1">Cat 1</option>
               <option value="Pumper">Pumper</option>
+              <option value="All Vehicles">All Vehicles</option>
             </select>
           </div>
         )}
@@ -149,6 +163,7 @@ export default function OperationalPage() {
               <option value="Cat 1">Cat 1</option>
               <option value="Pumper">Pumper</option>
               <option value="Pumper">Cat 9</option>
+              <option value="All Vehicles">All Vehicles</option>
             </select>
           </div>
         )}

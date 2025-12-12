@@ -458,9 +458,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       includeZeroAttendance
     } = req.body;
     try {
-      const MAX_SPAN = 365 * 24 * 60 * 60 * 1000; // 1 year ms
+      const MAX_SPAN = 1095 * 24 * 60 * 60 * 1000; // 1 year ms
     if (endEpoch - startEpoch > MAX_SPAN) {
-      res.status(400).json({ message: 'Date range too large (max 1 year)' });
+      res.status(400).json({ message: 'Date range too large (max 3 years)' });
       return;
     }
 
@@ -678,22 +678,22 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         if(detailed === false){
           const header = [
           'Name',
-          'Member number',
+          'Member Number',
           'Status',
           'Membership Classification',
-          'membership_type',
-          'Operational activities',
-          'Non-operational activities',
+          'Membership Type',
+          'Operational Activities',
+          'Non-Operational Activities',
         ];
         worksheet.addRow(header);
         } else if(detailed === true){
           const header = [
           'Timestamp',
           'Name',
-          'Member number',
+          'Member Number',
           'Status',
           'Membership Classification',
-          'Membership type',
+          'Membership Type',
           'Operational',
           'Activity',
           'Activity Detail',
