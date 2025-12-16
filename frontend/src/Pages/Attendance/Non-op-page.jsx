@@ -162,7 +162,7 @@ export default function OperationalPage() {
               <option value="">Select Option</option>
               <option value="Cat 1">Cat 1</option>
               <option value="Pumper">Pumper</option>
-              <option value="Pumper">Cat 9</option>
+              <option value="Cat 9">Cat 9</option>
               <option value="All Vehicles">All Vehicles</option>
             </select>
           </div>
