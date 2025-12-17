@@ -56,6 +56,7 @@ jobs:
           env:
             NODE_VERSION: '22.15.0'
             VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+            ROLLUP_SKIP_NATIVE: true
           with:
             azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROUD_MEADOW_082953800 }}
             action: "upload"
