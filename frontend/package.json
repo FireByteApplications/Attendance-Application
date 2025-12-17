@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "npm rebuild rollup && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .js,.jsx"
+  },
+  "engines": {
+  "node": "22.x"
   },
   "dependencies": {
     "moment": "^2.30.1",
