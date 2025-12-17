@@ -10,7 +10,7 @@
     "lint": "eslint . --ext .js,.jsx"
   },
   "engines": {
-  "node": "22.x"
+  "node": "22.15.0"
   },
   "dependencies": {
     "moment": "^2.30.1",
