@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "npm rebuild rollup && vite build",
+    "build": "ROLLUP_NATIVE=false vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .js,.jsx"
   },
@@ -20,6 +20,7 @@
     "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
+    "rollup": "^4.24.0",
     "@eslint/js": "^9.38.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
