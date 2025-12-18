@@ -151,7 +151,7 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     { value: sanitized.activity,           pattern: /^[a-zA-Z0-9\s-]+$/,  field: 'activity' },
   ] as const;
 
-  const minMS = moment.tz('2023-01-01 00:00:00', 'Australia/Sydney').valueOf();
+  const minMS = moment.tz('2000-01-01 00:00:00', 'Australia/Sydney').valueOf();
   const maxMS = moment.tz('2100-12-31 23:59:59.999', 'Australia/Sydney').valueOf();
   function isEpochMS(n: unknown): n is number{
     return typeof n === 'number'
@@ -168,7 +168,7 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
 
   const startEpochMS = Number(startEpoch)
   const endEpochMS = Number(endEpoch)
-  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be bafter Jan 1 2023'})}
+  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be be after Jan 1 2000'})}
   if (!isEpochMS(endEpochMS)){return res.status(400).json({message: 'End time must be before Dec 31 2100'})}
     req.body = {
     ...sanitized,
