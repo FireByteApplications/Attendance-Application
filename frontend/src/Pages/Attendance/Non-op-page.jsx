@@ -83,11 +83,11 @@ export default function OperationalPage() {
         name: username,
         operational: activitySelection,
         activity,
+        roles: selectedRoles,
         epochTimestamp: dateObj.getTime(),
       ...(activity === "BA-Checks" && { baType: type }),
       ...(activity === "Chainsaw-Checks" && { chainsawType: type }),
-      ...(activity === "Other-Non-operational" && { otherType }),
-        roles:[selectedRoles]
+      ...(activity === "Other-Non-operational" && { otherType })
         } 
         const response = await fetch(`${apiurl}/api/attendance/submit`, {
         method: "POST",

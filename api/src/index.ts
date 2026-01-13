@@ -736,7 +736,7 @@ function deleteColumnIfEmpty(
           'Activity',
           'Activity Detail',
           'Activity Location',
-          'roles'
+          'Roles'
         ];
         worksheet.addRow(header);
         }
