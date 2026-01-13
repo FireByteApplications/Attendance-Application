@@ -455,10 +455,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       activity,
       operational,
       detailed,
-      includeZeroAttendance
+      includeZeroAttendance,
+      roles
     } = req.body;
     try {
-      const MAX_SPAN = 1095 * 24 * 60 * 60 * 1000; // 1 year ms
+      const MAX_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years ms
     if (endEpoch - startEpoch > MAX_SPAN) {
       res.status(400).json({ message: 'Date range too large (max 3 years)' });
       return;
@@ -470,6 +471,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       if (name) query.name = name;
       if (activity) query.activity = activity;
       if (operational) query.operational = operational;
+      if(Array.isArray(roles) && roles.length === 1){
+        query.roles = roles[0]
+      }
       const MAX_ROWS = 50000;
       const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
       const records = await recordsCursor.toArray();
@@ -557,6 +561,35 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const reportExport: RequestHandler = async (req, res) => {
   const authedReq = req as AuthedRequest;
   authedReq.user = authedReq.session.user;
+  function isEmptyCellValue(v: unknown): boolean{
+  if (v == null) return true;
+  if (typeof v === "string") return v.trim() === ""
+  if (typeof v === "object"){
+    const obj = v as any;
+    if (obj.rechText) return obj.richText.length === 0;
+    if (obj.text) return String(obj.text).trim() === "";
+    if (obj.formula) return false; 
+    if (obj.result != null) return false;
+  }
+  return false
+}
+function deleteColumnIfEmpty(
+  worksheet: ExcelJS.Worksheet,
+  colNumber: number,
+  headerRowNumber = 1
+) {
+  let hasData = false;
+
+  worksheet.eachRow({includeEmpty: true}, (row, rowNumber) => {
+    if (rowNumber <= headerRowNumber) return;
+
+    const cellValue = row.getCell(colNumber).value;
+    if(!isEmptyCellValue(cellValue)) hasData = true;
+  });
+  if (!hasData){
+    worksheet.spliceColumns(colNumber, 1);
+  }
+}
   const {
       startEpoch,
       endEpoch,
@@ -564,6 +597,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       activity,
       operational,
       includeZeroAttendance,
+      roles,
       detailed,
       formattedStart,
       formattedEnd
@@ -577,7 +611,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         if (name) query.name = name;
         if (activity) query.activity = activity;
         if (operational) query.operational = operational;
-
+        if(Array.isArray(roles) && roles.length === 1){
+        query.roles = roles[0]
+        };
         const MAX_ROWS = 50000;
         const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
         const records = await recordsCursor.toArray();
@@ -620,6 +656,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
                 ...(record.deploymentType && { deploymentType: record.deploymentType }),
                 ...(record.otherType && { otherType: record.otherType }),
                 ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+                ...(record.roles && { roles: record.roles})
               });
 
               if (record.operational === "Operational") userStats.operationalActivities++;
@@ -652,6 +689,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
                 ...(record.deploymentType && { deploymentType: record.deploymentType }),
                 ...(record.otherType && { otherType: record.otherType }),
                 ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
+                ...(record.roles && { roles: record.roles})
               });
             }
             }
@@ -698,6 +736,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           'Activity',
           'Activity Detail',
           'Activity Location',
+          'roles'
         ];
         worksheet.addRow(header);
         }
@@ -729,6 +768,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               activityType = record.deploymentType || "";
               activityLocation = record.deploymentLocation || "";
             }
+            const roles =
+              Array.isArray(record.roles) && record.roles.length > 0
+                ? record.roles.join(", ")
+                : ""
             const row = [
               record.timestampLocal,
               user.name,
@@ -739,7 +782,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               record.operational,
               record.activity,
               activityType,
-              activityLocation
+              activityLocation,
+              roles
             ];
             worksheet.addRow(row);
             }
@@ -757,7 +801,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           ]
           worksheet.addRow(row)
         })
-
+        for(let i = 11; i > 1; i--){
+          deleteColumnIfEmpty(worksheet, i)
+        }
       const fallbackFormat = (epoch: number) => new Date(epoch).toISOString().slice(0, 10).replace(/-/g, '');
       const fileStart = formattedStart || fallbackFormat(startEpoch);
       const fileEnd = formattedEnd || fallbackFormat(endEpoch);
@@ -787,7 +833,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
     const exists = await usersCollection.findOne({ username });
       if (!exists){
-        console.log(username)
         res.status(404).json({ ok: false });
         return;}
     req.session.validUsername = username;               // 🔑 remember validation in this session
@@ -818,12 +863,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     chainsawType,
     deploymentType,
     deploymentLocation,
-    otherType
+    otherType,
+    roles
   } = req.body;
   const record: any = {
     name,
     operational,
     activity,
+    roles,
     epochTimestamp
   };
   // Conditional data fields based on activity type

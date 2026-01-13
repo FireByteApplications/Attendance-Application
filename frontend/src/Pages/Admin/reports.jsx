@@ -39,6 +39,17 @@ const activityOptions = {
   ],
 };
 
+const roleOptions = 
+  [
+  "Crew Leader",
+  "Driver",
+  "Pump Operator",
+  "BA Operator",
+  "BACO",
+  "Hose Operator",
+  "Chainsaw Operator"
+];
+
 export default function Reports({ users = [] }) {
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
@@ -53,11 +64,13 @@ export default function Reports({ users = [] }) {
     operational: '',
     includeZeroAttendance: false,
     detailed: false,
-    incidentType: ''
+    incidentType: '',
+    roles: ''
   });
   const [activities, setActivities] = useState(activityOptions.Any);
   const [reportHTML, setReportHTML] = useState('');
   const [userOptions, setUserOptions] = useState([]);
+  const [roles] = useState(roleOptions);
 
   useEffect(() => {
     fetch(`${apiUrl}/api/users/names`, {
@@ -100,7 +113,8 @@ export default function Reports({ users = [] }) {
         activity: form.activity,
         operational: form.operational,
         detailed: form.detailed,
-        includeZeroAttendance: form.includeZeroAttendance
+        includeZeroAttendance: form.includeZeroAttendance,
+        roles: form.roles ? [form.roles] : []
       }),
     });
     const result = await res.json();
@@ -124,7 +138,9 @@ export default function Reports({ users = [] }) {
         const hasActivityType = !!(isDetailed && rows.some(r =>
           r?.deploymentType || r?.baType || r?.chainsawType || r?.otherType
         ));
-
+        const hasRoles = !!(isDetailed && rows.some (r =>
+          r?.roles
+         ));
         const hasActivityLocation = !!(isDetailed && rows.some(r => r?.deploymentLocation));
 
         const headerHtml = isDetailed
@@ -135,6 +151,7 @@ export default function Reports({ users = [] }) {
           <th>Activity</th>
           ${hasActivityType ? '<th>Activity Detail</th>' : ''}
           ${hasActivityLocation ? '<th>Activity Location</th>' : ''}
+          ${hasRoles ? '<th>Roles</th>' : ''}
         `
         : `
           <th>Name</th>
@@ -155,6 +172,7 @@ export default function Reports({ users = [] }) {
                 <td>${r.activity ?? ''}</td>
                 ${hasActivityType ? `<td>${r.deploymentType || r.baType || r.chainsawType || r.otherType || ''}</td>` : ''}
                 ${hasActivityLocation ? `<td>${r.deploymentLocation || ''}</td>` : ''}
+                ${hasRoles ? `<td>${r.roles || ''}</td` : ''}
               </tr>
             `).join('')
           : rows.map(r => `
@@ -207,6 +225,7 @@ export default function Reports({ users = [] }) {
         activity: form.activity,
         operational: form.operational,
         includeZeroAttendance: form.includeZeroAttendance,
+        roles: form.roles ? [form.roles] : [],
         detailed: form.detailed,
         formattedStart,
         formattedEnd
@@ -264,6 +283,13 @@ export default function Reports({ users = [] }) {
               <select className="form-select" name="activity" value={form.activity} onChange={handleChange}>
                 <option value="">Any</option>
                 {activities.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className='form-label'>Roles</label>
+              <select className='form-select' name='roles' value={form.roles} onChange={handleChange}>
+                <option value="">Any</option>
+                {roles.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div className="form-check mt-3">
