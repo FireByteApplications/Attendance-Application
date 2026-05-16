@@ -10,6 +10,10 @@ const activities = [
   "Deployment",
   "Hazard-Reduction",
   "Pile-Burn",
+  "Training",
+  "Maintenance",
+  "BA-Checks",
+  "Chainsaw-Checks",
   "Other-operational",
 ];
 const apiurl = import.meta.env.VITE_API_BASE_URL;

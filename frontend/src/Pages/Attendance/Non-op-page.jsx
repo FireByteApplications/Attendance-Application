@@ -5,12 +5,8 @@ import {useState, useEffect } from "react";
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 
 const activities = [
-  "Training",
   "Meeting",
-  "Maintenance",
   "Community-Engagement",
-  "BA-Checks",
-  "Chainsaw-Checks",
   "Other-Non-operational"
 ];
 const apiurl = import.meta.env.VITE_API_BASE_URL;
