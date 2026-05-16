@@ -54,6 +54,21 @@ export default function OperationalPage() {
     username = username.replace(/\./g, " ");
 
     const activitySelection = 'Operational'
+    let payloads;
+
+    if (activity === "BA-Checks") {
+      payloads = 
+        baType === "All Vehicles"
+          ? ["Cat 1", "Pumper"]
+          : [baType]
+    } else if (activity === "Chainsaw-Checks") {
+        payloads =
+          chainsawType === "All Vehicles"
+            ? ["Cat 1", "Pumper", "Cat 9"]
+            :[chainsawType]
+    } else{
+      payloads = [null]
+    }
 
     const data = {
       name: username,
@@ -64,10 +79,10 @@ export default function OperationalPage() {
       deploymentType,
       deploymentLocation
     }),
+    ...(activity === "BA-Checks" && { baType: type }),
+    ...(activity === "Chainsaw-Checks" && { chainsawType: type }),
     ...(activity === "Other-operational" && { otherType })
-  };
-    console.log(data)
-
+  }; 
     try {
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
         method: "POST",

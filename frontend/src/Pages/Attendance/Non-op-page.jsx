@@ -47,31 +47,13 @@ export default function OperationalPage() {
     username = username.replace(/\./g, " ");
 
     const activitySelection = 'Non-Operational'
-    let payloads;
-
-    if (activity === "BA-Checks") {
-      payloads = 
-        baType === "All Vehicles"
-          ? ["Cat 1", "Pumper"]
-          : [baType]
-    } else if (activity === "Chainsaw-Checks") {
-        payloads =
-          chainsawType === "All Vehicles"
-            ? ["Cat 1", "Pumper", "Cat 9"]
-            :[chainsawType]
-    } else{
-      payloads = [null]
-    }
     try {
-      let finalresponse;
-      for (const type of payloads){    
+      let finalresponse;   
         const data = {
         name: username,
         operational: activitySelection,
         activity,
         epochTimestamp: dateObj.getTime(),
-      ...(activity === "BA-Checks" && { baType: type }),
-      ...(activity === "Chainsaw-Checks" && { chainsawType: type }),
       ...(activity === "Other-Non-operational" && { otherType })
         } 
         const response = await fetch(`${apiurl}/api/attendance/submit`, {
@@ -87,7 +69,6 @@ export default function OperationalPage() {
           throw new Error("Insert Failed")
         }
         finalresponse = response
-      };
       const result = await finalresponse.json();
 
       const message = encodeURIComponent("Attendance logged successfully!");
