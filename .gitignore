@@ -3,4 +3,6 @@
 .deployment
 dist
 node_modules
-*docker*
+.dockerignore
+Dockerfile.dev
+docker-compose.yml
