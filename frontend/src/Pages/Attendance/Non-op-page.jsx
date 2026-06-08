@@ -5,12 +5,8 @@ import {useState, useEffect } from "react";
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 
 const activities = [
-  "Training",
   "Meeting",
-  "Maintenance",
   "Community-Engagement",
-  "BA-Checks",
-  "Chainsaw-Checks",
   "Other-Non-operational"
 ];
 const apiurl = import.meta.env.VITE_API_BASE_URL;
@@ -20,8 +16,6 @@ export default function OperationalPage() {
   useEffect(() => {
       if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
     }, [csrfToken]);
-  const [baType, setBaType] = useState("");
-  const [chainsawType, setChainsawType] = useState("");
   const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
@@ -51,31 +45,13 @@ export default function OperationalPage() {
     username = username.replace(/\./g, " ");
 
     const activitySelection = 'Non-Operational'
-    let payloads;
-
-    if (activity === "BA-Checks") {
-      payloads = 
-        baType === "All Vehicles"
-          ? ["Cat 1", "Pumper"]
-          : [baType]
-    } else if (activity === "Chainsaw-Checks") {
-        payloads =
-          chainsawType === "All Vehicles"
-            ? ["Cat 1", "Pumper", "Cat 9"]
-            :[chainsawType]
-    } else{
-      payloads = [null]
-    }
     try {
-      let finalresponse;
-      for (const type of payloads){    
+      let finalresponse;   
         const data = {
         name: username,
         operational: activitySelection,
         activity,
         epochTimestamp: dateObj.getTime(),
-      ...(activity === "BA-Checks" && { baType: type }),
-      ...(activity === "Chainsaw-Checks" && { chainsawType: type }),
       ...(activity === "Other-Non-operational" && { otherType })
         } 
         const response = await fetch(`${apiurl}/api/attendance/submit`, {
@@ -91,7 +67,6 @@ export default function OperationalPage() {
           throw new Error("Insert Failed")
         }
         finalresponse = response
-      };
       const result = await finalresponse.json();
 
       const message = encodeURIComponent("Attendance logged successfully!");
@@ -122,59 +97,13 @@ export default function OperationalPage() {
             </button>
           ))}
         </div>
-          {selectedActivity === "BA-Checks" && (
-          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
-          style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
-              width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
-            }}>
-            <label className="form-label fw-bold d-block">Select BA Type:</label>
-            <select
-              className="form-select w-50 mx-auto"
-              value={baType}
-              onChange={(e) => setBaType(e.target.value)}
-            >
-              <option value="">Select Option</option>
-              <option value="Cat 1">Cat 1</option>
-              <option value="Pumper">Pumper</option>
-              <option value="All Vehicles">All Vehicles</option>
-            </select>
-          </div>
-        )}
-        {selectedActivity === "Chainsaw-Checks" && (
-          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
-          style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
-              width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
-            }}>
-            <label className="form-label fw-bold d-block">Select Chainsaw Type:</label>
-            <select
-              className="form-select w-50 mx-auto"
-              value={chainsawType}
-              onChange={(e) => setChainsawType(e.target.value)}
-            >
-              <option value="">Select Option</option>
-              <option value="Cat 1">Cat 1</option>
-              <option value="Pumper">Pumper</option>
-              <option value="Cat 9">Cat 9</option>
-              <option value="All Vehicles">All Vehicles</option>
-            </select>
-          </div>
-        )}
         {selectedActivity === "Other-Non-operational" && (
           <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
           style={{
               fontSize: "1rem",
               padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
-              width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              maxWidth: "400px", 
+              marginBottom: "1rem"
             }}>
             <label className="form-label fw-bold d-block">Other Non-Operational Activity:</label>
             <input placeholder="Eg Administration"
@@ -187,9 +116,9 @@ export default function OperationalPage() {
             style={{
               fontSize: "1rem",
               padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",   
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}>
           <label htmlFor="inputDate" className="form-label">Backdate (optional):</label>
           <input
