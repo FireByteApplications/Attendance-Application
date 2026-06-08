@@ -20,6 +20,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
+const isProd = process.env.NODE_ENV === "production";
 const DB_NAME = process.env.DB_NAME;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
 const sessionStoreUrl = process.env.SESSION_STORE_URL
@@ -60,11 +61,12 @@ app.use(
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    
     cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 60 * 60 * 1000, //1 hour
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    maxAge: 60 * 60 * 1000, //1 hour
     },
   }),
 );
