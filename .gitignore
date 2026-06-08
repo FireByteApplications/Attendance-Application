@@ -3,3 +3,4 @@
 .deployment
 dist
 node_modules
+docker*
