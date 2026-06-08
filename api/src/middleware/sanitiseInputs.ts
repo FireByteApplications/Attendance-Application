@@ -1,6 +1,39 @@
 import { Request, Response, NextFunction } from 'express';
 import moment from 'moment';
 import validator from 'validator';
+
+const allowedRoles = new Set([
+  "Crew Leader",
+  "Driver",
+  "Pump Operator",
+  "BA Operator",
+  "BACO",
+  "Hose Operator",
+  "Chainsaw Operator",
+]);
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+function sanitiseRoles(value: unknown, opts?: { max?: number }): string[] | null {
+  if (value == null) return [];
+  if (!isStringArray(value)) return null;
+
+  const max = opts?.max ?? 20;
+  if (value.length > max) return null;
+
+  const sanitised = value
+    .map((r) => validator.trim(r).replace(/\0/g, ""))
+    .filter((r) => r.length > 0);
+
+  for (const r of sanitised) {
+    if (!allowedRoles.has(r)) return null;
+  }
+
+  return Array.from(new Set(sanitised));
+}
+
 export function sanitizeAttendanceInput(req: Request, res: Response, next: NextFunction) {
   const {
     name,
@@ -11,8 +44,17 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     chainsawType,
     deploymentType,
     deploymentLocation,
-    otherType
+    otherType,
+    roles
   } = req.body;
+
+  const sanitisedRoles = sanitiseRoles(roles);
+  if (sanitisedRoles === null){
+    res.status(400).json({
+      message: `Invalid roles. Must be an array containing only: ${Array.from(allowedRoles).join(", ")}`,
+    });
+    return
+  }
 
   const sanitized = {
     name: validator.trim(name || ''),
@@ -22,7 +64,8 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     chainsawType: validator.trim(chainsawType || ''),
     deploymentType: validator.trim(deploymentType || ''),
     deploymentLocation: validator.trim(deploymentLocation || ''),
-    otherType: validator.trim(otherType || '')
+    otherType: validator.trim(otherType || ''),
+    roles: sanitisedRoles
   };
 
   const validators = [
@@ -132,8 +175,17 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     activity,
     operational,
     detailed,
-    includeZeroAttendance
+    includeZeroAttendance,
+    roles
   } = req.body ?? {};
+
+  const sanitisedRoles = sanitiseRoles(roles);
+  if (sanitisedRoles === null){
+    res.status(400).json({
+      message: `Invalid roles. Must be an array containing only: ${Array.from(allowedRoles).join(", ")}`,
+    });
+    return
+  }
 
   const asTrimmedString = (v: unknown) => validator.trim(String(v ?? ''));
 
@@ -142,7 +194,8 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     operational: asTrimmedString(operational),
     activity: asTrimmedString(activity),
     detailed: parseBoolean(detailed),
-    includeZeroAttendance: parseBoolean(includeZeroAttendance)
+    includeZeroAttendance: parseBoolean(includeZeroAttendance),
+    roles: sanitisedRoles
   };
 
   const validators = [
@@ -151,7 +204,7 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     { value: sanitized.activity,           pattern: /^[a-zA-Z0-9\s-]+$/,  field: 'activity' },
   ] as const;
 
-  const minMS = moment.tz('2000-01-01 00:00:00', 'Australia/Sydney').valueOf();
+  const minMS = moment.tz('2023-01-01 00:00:00', 'Australia/Sydney').valueOf();
   const maxMS = moment.tz('2100-12-31 23:59:59.999', 'Australia/Sydney').valueOf();
   function isEpochMS(n: unknown): n is number{
     return typeof n === 'number'
@@ -168,7 +221,7 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
 
   const startEpochMS = Number(startEpoch)
   const endEpochMS = Number(endEpoch)
-  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be be after Jan 1 2000'})}
+  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be after Jan 1 2023'})}
   if (!isEpochMS(endEpochMS)){return res.status(400).json({message: 'End time must be before Dec 31 2100'})}
     req.body = {
     ...sanitized,
@@ -199,10 +252,19 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
     activity,
     operational,
     includeZeroAttendance,
+    roles,
     detailed,
     formattedStart,
     formattedEnd
   } = req.body ?? {};
+
+  const sanitisedRoles = sanitiseRoles(roles);
+  if (sanitisedRoles === null){
+    res.status(400).json({
+      message: `Invalid roles. Must be an array containing only: ${Array.from(allowedRoles).join(", ")}`,
+    });
+    return
+  }
 
   const sanitized = {
     name: validator.trim(String(name ?? '')),
@@ -213,6 +275,7 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
 
     includeZeroAttendance: parseBoolean(includeZeroAttendance),
     detailed: parseBoolean(detailed),
+    roles: sanitisedRoles
   };
 
   function runRule(rule: { value: any; field: string; pattern?: RegExp; validate?: (v: any) => boolean }) {
@@ -247,7 +310,7 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
   }
   const startEpochMS = Number(startEpoch)
   const endEpochMS = Number(endEpoch)
-  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be after Jan 1 2023'})}
+  if (!isEpochMS(startEpochMS)) {return res.status(400).json({message: 'Start time must be bafter Jan 1 2023'})}
   if (!isEpochMS(endEpochMS)){return res.status(400).json({message: 'End time must be before Dec 31 2100'})}
 
   const errors: string[] = [];

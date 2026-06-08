@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-
+import CheckboxContainer from '../../Components/checkboxContainer.jsx'
 const activities = [
   "Incident-Call",
   "Strike-Team",
@@ -16,6 +16,7 @@ const activities = [
   "Chainsaw-Checks",
   "Other-operational",
 ];
+
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function OperationalPage() {
@@ -30,6 +31,7 @@ export default function OperationalPage() {
   const [deploymentType, setDeploymentType] = useState("");
   const [deploymentLocation, setDeploymentLocation] = useState("");
   const [otherType, setOtherType] = useState("")
+  const [selectedRoles, setSelectedRoles] = useState([])
   const navigate = useNavigate();
 
   const handleSelect = (activity) => {
@@ -37,6 +39,7 @@ export default function OperationalPage() {
     setSelectedActivity(newValue);
     if (newValue) {
       sessionStorage.setItem("activity", newValue);
+      setSelectedRoles([]);
     } else {
       sessionStorage.removeItem("activity");
     }
@@ -76,15 +79,17 @@ export default function OperationalPage() {
       name: username,
       operational: activitySelection,
       activity,
+      roles: selectedRoles,
       epochTimestamp: dateObj.getTime(),
      ...(activity === "Deployment" && {
       deploymentType,
-      deploymentLocation
+      deploymentLocation,
     }),
     ...(activity === "BA-Checks" && { baType }),
     ...(activity === "Chainsaw-Checks" && { chainsawType }),
     ...(activity === "Other-operational" && { otherType })
-  }; 
+  };
+
     try {
       console.log(data)
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
@@ -116,6 +121,7 @@ export default function OperationalPage() {
       navigate("/attendance");
     }
   };
+
   useTitle('Operational Attendance');
   return (
     <div className={styles.attendanceBg}>
@@ -226,6 +232,14 @@ export default function OperationalPage() {
             </input>
           </div>
         )}
+
+        {selectedActivity && (
+         <CheckboxContainer
+          selectedRoles={selectedRoles}
+          setSelectedRoles={setSelectedRoles}
+         />
+        )}
+
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
             style={{
               fontSize: "1rem",
@@ -244,7 +258,6 @@ export default function OperationalPage() {
             onChange={(e) => setDate(e.target.value)}
           />
         </div>
-
         <div className="text-center">
           <button onClick={handleSubmit} className="btn btn-danger">
             Submit

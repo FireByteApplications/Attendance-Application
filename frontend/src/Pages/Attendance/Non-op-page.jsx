@@ -3,12 +3,21 @@ import styles from "../../styles/Attendance.module.css";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect } from "react";
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import CheckboxContainer from '../../Components/checkboxContainer.jsx'
 
 const activities = [
   "Meeting",
   "Community-Engagement",
   "Other-Non-operational"
 ];
+
+const roleActivities = [
+  "Training",
+  "Community-Engagement",
+  "Other-Non-operational"
+
+]
+
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function OperationalPage() {
@@ -19,6 +28,7 @@ export default function OperationalPage() {
   const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
+  const [selectedRoles, setSelectedRoles] = useState([])
   const navigate = useNavigate();
 
   const handleSelect = (activity) => {
@@ -51,6 +61,7 @@ export default function OperationalPage() {
         name: username,
         operational: activitySelection,
         activity,
+        roles: selectedRoles,
         epochTimestamp: dateObj.getTime(),
       ...(activity === "Other-Non-operational" && { otherType })
         } 
@@ -112,6 +123,14 @@ export default function OperationalPage() {
             </input>
           </div>
         )}
+        {roleActivities.includes(selectedActivity)  && (
+         <CheckboxContainer
+          selectedRoles={selectedRoles}
+          setSelectedRoles={setSelectedRoles}
+         />
+        )}
+
+
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
             style={{
               fontSize: "1rem",
