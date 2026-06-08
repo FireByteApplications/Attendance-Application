@@ -10,6 +10,10 @@ const activities = [
   "Deployment",
   "Hazard-Reduction",
   "Pile-Burn",
+  "Training",
+  "Maintenance",
+  "BA-Checks",
+  "Chainsaw-Checks",
   "Other-operational",
 ];
 
@@ -21,6 +25,8 @@ export default function OperationalPage() {
         if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
       }, [csrfToken]);
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
+  const [baType, setBaType] = useState("");
+  const [chainsawType, setChainsawType] = useState("");
   const [date, setDate] = useState("");
   const [deploymentType, setDeploymentType] = useState("");
   const [deploymentLocation, setDeploymentLocation] = useState("");
@@ -53,6 +59,21 @@ export default function OperationalPage() {
     username = username.replace(/\./g, " ");
 
     const activitySelection = 'Operational'
+    let payloads;
+
+    if (activity === "BA-Checks") {
+      payloads = 
+        baType === "All Vehicles"
+          ? ["Cat 1", "Pumper"]
+          : [baType]
+    } else if (activity === "Chainsaw-Checks") {
+        payloads =
+          chainsawType === "All Vehicles"
+            ? ["Cat 1", "Pumper", "Cat 9"]
+            :[chainsawType]
+    } else{
+      payloads = [null]
+    }
 
     const data = {
       name: username,
@@ -64,10 +85,13 @@ export default function OperationalPage() {
       deploymentType,
       deploymentLocation,
     }),
+    ...(activity === "BA-Checks" && { baType }),
+    ...(activity === "Chainsaw-Checks" && { chainsawType }),
     ...(activity === "Other-operational" && { otherType })
   };
 
     try {
+      console.log(data)
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
         method: "POST",
         credentials: 'include',
@@ -120,9 +144,9 @@ export default function OperationalPage() {
             style={{
               fontSize: "1rem",
               padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}>
           <label className="form-label fw-bold d-block">Deployment Type:</label>
           <select
@@ -147,7 +171,7 @@ export default function OperationalPage() {
           </select>
         </div>
       )}
-        {selectedActivity === "Other-operational" && (
+      {selectedActivity === "BA-Checks" && (
           <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
           style={{
               fontSize: "1rem",
@@ -155,6 +179,51 @@ export default function OperationalPage() {
               maxWidth: "400px",       // ✅ limit total width
               width: "100%",
               marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+            }}>
+            <label className="form-label fw-bold d-block">Select BA Type:</label>
+            <select
+              className="form-select w-50 mx-auto"
+              value={baType}
+              onChange={(e) => setBaType(e.target.value)}
+            >
+              <option value="">Select Option</option>
+              <option value="Cat 1">Cat 1</option>
+              <option value="Pumper">Pumper</option>
+              <option value="All Vehicles">All Vehicles</option>
+            </select>
+          </div>
+        )}
+        {selectedActivity === "Chainsaw-Checks" && (
+          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          style={{
+              fontSize: "1rem",
+              padding: "0.25rem 0.75rem",
+              maxWidth: "400px",       // ✅ limit total width
+              width: "100%",
+              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+            }}>
+            <label className="form-label fw-bold d-block">Select Chainsaw Type:</label>
+            <select
+              className="form-select w-50 mx-auto"
+              value={chainsawType}
+              onChange={(e) => setChainsawType(e.target.value)}
+            >
+              <option value="">Select Option</option>
+              <option value="Cat 1">Cat 1</option>
+              <option value="Pumper">Pumper</option>
+              <option value="Cat 9">Cat 9</option>
+              <option value="All Vehicles">All Vehicles</option>
+            </select>
+          </div>
+        )}
+        {selectedActivity === "Other-operational" && (
+          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          style={{
+              fontSize: "1rem",
+              padding: "0.25rem 0.75rem",
+              maxWidth: "400px",
+              width: "100%",
+              marginBottom: "1rem"
             }}>
             <label className="form-label fw-bold d-block">Other Operational Activity:</label>
             <input placeholder="Eg Permits"
@@ -175,9 +244,9 @@ export default function OperationalPage() {
             style={{
               fontSize: "1rem",
               padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}
         >
           <label htmlFor="inputDate" className="form-label">Backdate (optional):</label>
