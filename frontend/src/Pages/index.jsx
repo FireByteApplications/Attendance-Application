@@ -28,20 +28,43 @@ export default function Home() {
     <>
       <div className="container d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
       <div className="row text-center">
-        <div className="col-md-6 mb-4">
-          <Link to="/attendance" className="text-decoration-none">
-            <div className="card p-4 shadow-sm h-100">
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/attendance"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
               <h4 className="mb-0">Attendance Site</h4>
             </div>
           </Link>
         </div>
-        <div className="col-md-6 mb-4">
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/createincidents"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
+              <h4 className="mb-0">Event Creation</h4>
+            </div>
+          </Link>
+        </div>
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/roles"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
+              <h4 className="mb-0">Role Assignment</h4>
+            </div>
+          </Link>
+        </div>
+        <div className="col-md-6 mb-4 d-flex">
           <button
             onClick={handleAdminClick}
-            className="text-decoration-none btn btn-link p-0"
+            className="text-decoration-none btn btn-link p-0 w-100"
             style={{ textDecoration: 'none' }}
           >
-            <div className="card p-4 shadow-sm h-100">
+            <div className="card p-4 shadow-sm h-100 w-100 h-100 justify-content-center align-items-center text-center">
               <h4 className="mb-0">Admin Dashboard</h4>
             </div>
           </button>

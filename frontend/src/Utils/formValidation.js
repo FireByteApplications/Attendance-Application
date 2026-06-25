@@ -1,10 +1,28 @@
 // utils/formValidation.js
 
-export const validateName = (value) => /^[a-zA-Z\s-]+$/.test(value);
-export const validateSelections = (value) => /^[a-zA-Z\s-()]+$/.test(value);
-export const validateFireZoneNumber = (value) => /^[1-9]+$/.test(value);
-export const validateOtherType = (value) => /^[a-zA-Z\s.,']+$/.test(value);
-export const sanitizeName = (name) => name.trim();
+export const validateName = (value) => 
+  /^[a-zA-Z\s-]+$/.test(value);
+
+export const validateSelections = (value) => 
+  /^[a-zA-Z\s-()]+$/.test(value);
+
+export const validateFireZoneNumber = (value) => 
+  /^[1-9]+$/.test(value);
+
+export const validateOtherType = (value) => 
+  /^[a-zA-Z\s.,']+$/.test(value);
+
+export const sanitizeName = (name) =>
+  name.trim();
+
+export const validateDateDMY = (value) =>
+  /^(\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))$/.test(value);
+
+export const validateIncidentID = (value) =>
+  /^\d{2}-\d{1,8}$/.test(value);
+
+export const validateDescription = (value) =>
+  /^[A-Za-z0-9]+$/.test(value);
 
 // Validate full form before submission
 export const validateUserForm = (formData) => {
@@ -36,3 +54,17 @@ export const validateUserForm = (formData) => {
 
   return errors;
 };
+export const validateIncidentCreationForm = (formdata) => {
+  console.log(formdata)
+  const errors = [];
+  if (!validateDateDMY(formdata.Date)) {
+    errors.push("Date format invalid. Format required: DD/MM/YYY")
+  }
+  if (!validateIncidentID(formdata.ActivID)) {
+    errors.push("Activ Incident id must be in format 26-12345678")
+  }
+  if (!validateDescription(formdata.IncidentDescription)) {
+    errors.push("Description can only contain letters and numbers")
+  }
+  return errors;
+}
