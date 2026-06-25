@@ -14,7 +14,7 @@ import helmet from 'helmet';
 import { promisify } from 'util';
 import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
 import MongoStore from 'connect-mongo';
-import { sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import { sanitizeIncidentCreation, sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 import { errorHandler } from './middleware/errorHandle'
 dotenv.config();
 
@@ -44,6 +44,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use(cors(corsOptions));
 app.use(express.json());
 import session from 'express-session';
+import { time } from 'console';
 
 app.use(
   session({
@@ -63,10 +64,10 @@ app.use(
     proxy: true,
     
     cookie: {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
-    maxAge: 60 * 60 * 1000, //1 hour
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 60 * 60 * 1000, //1 hour
     },
   }),
 );
@@ -102,6 +103,7 @@ client.connect().then(() => {
   const db = client.db(`${DB_NAME}`);
   const usersCollection = db.collection('Usernames');
   const recordsCollection = db.collection('Records');
+  const eventsCollection = db.collection('Events')
 
   async function fetchOrThrow<T>(url: string, init: FetchRequestInit): Promise<T> {
     const res = await fetch(url, init);
@@ -157,7 +159,6 @@ client.connect().then(() => {
   try{
     const code = req.query.code as string;
     const state = req.query.state as string;
-    
     if (!code || !state || state !== req.session.oauthState) {
       res.status(400).send('Invalid or missing OAuth state.');
       return;
@@ -914,8 +915,60 @@ function deleteColumnIfEmpty(
     res.status(200).json(names.map((u) => u.username));
   };
   app.get('/api/attendance/usernameList',  listNames)
-
   
+  const createIncident: RequestHandler = async (req, res) => {
+    const {
+      date,
+      activID,
+      incidentDescription
+    } = req.body
+
+    const record = {
+      incidentNumber: activID,
+      incidentDate: date,
+      description: incidentDescription,
+      eventType: "incident",
+      createdAtEpoch: Date.now()
+    }
+    try {
+    const result = await eventsCollection.insertOne(record);
+    res.status(200).json({ message: 'Data submitted successfully', result });
+    } 
+    catch (error: any) {
+      if (error?.code === 11000) {
+        return res.status(409).json({
+          message: "An incident with this incident number already exists."
+        });
+      }
+      console.error("Error submitting data", error);
+
+      return res.status(500).json({
+        message: "Failed to submit data"
+      });
+    }
+  }
+  app.post('/api/attendance/createIncident', sanitizeIncidentCreation, createIncident)
+  
+  const listIncidents: RequestHandler = async (req, res) => {
+    try{
+    const incidents = await eventsCollection.find(
+      { eventType: "incident" },
+      {
+        projection: {
+          _id: 0,
+          incidentNumber: 1,
+          incidentDate: 1,
+          description: 1
+        }
+      }
+    ).toArray();
+    res.status(200).json(incidents)
+  } catch {
+    res.status(500).json({message:"An error occured"})
+  }
+  
+  }
+  app.get('/api/attendance/listIncidents', listIncidents)
 app.use(errorHandler);
 
   app.listen(port, () => {

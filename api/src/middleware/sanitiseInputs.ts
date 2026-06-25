@@ -330,3 +330,61 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
   };
   return next();
 }
+export function sanitizeIncidentCreation(req: Request, res: Response, next: NextFunction) {
+  const {
+    Date,
+    ActivID,
+    IncidentDescription
+  } = req.body ?? {}; 
+  
+  
+  const sanitized = {
+    Date: validator.trim(String(Date ?? "")),
+    ActivID: validator.trim(String(ActivID ?? "")),
+    IncidentDescription: validator.trim(String(IncidentDescription ?? ""))
+  };
+
+  const errors: string[] = [];
+
+  if (!sanitized.Date) {
+    errors.push("Date is required");
+  } else if (!/^(\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))$/.test(sanitized.Date)) {
+    errors.push("Date must be in YYYY-MM-DD format");
+  } else {
+    const validDate = moment.tz(
+      sanitized.Date,
+      "YYYY-MM-DD",
+      true,
+      "Australia/Sydney"
+    );
+
+    if (!validDate.isValid()) {
+      errors.push("Date is invalid");
+    }
+  }
+
+  if (!sanitized.ActivID) {
+    errors.push("Activity ID is required");
+  } else if (!/^\d{2}-\d{1,8}$/.test(sanitized.ActivID)) {
+    errors.push("Activity ID must be in the format 26-12345678");
+  }
+
+  if (!sanitized.IncidentDescription) {
+    errors.push("Incident description is required");
+  } else if (!/^[A-Za-z0-9]+$/.test(sanitized.IncidentDescription)) {
+    errors.push("Incident description can only contain letters and numbers");
+  }
+
+  if (errors.length) {
+    return res.status(400).json({
+      message: `Invalid fields: ${errors.join(", ")}`
+    });
+  }
+  req.body = {
+    date: sanitized.Date,
+    activID: sanitized.ActivID,
+    incidentDescription: sanitized.IncidentDescription
+  };
+
+  return next();
+}
