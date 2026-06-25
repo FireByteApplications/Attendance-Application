@@ -4,20 +4,43 @@ import { useLocation, useNavigate } from "react-router-dom";
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
+
   const path = location.pathname;
-  const isAdmin = location.pathname.startsWith("/admin");
-  const isAttendance = location.pathname.startsWith("/attendance");
-  const isIndex = location.pathname === "/";
+
+  const isAdmin = path.startsWith("/admin");
+  const isAttendance = path.startsWith("/attendance");
+  const isIndex = path === "/";
+
   const pathBackMap = {
-  "/attendance/selection": "/attendance",
-  "/attendance/operational": "/attendance/selection",
-  "/attendance/non-operational": "/attendance/selection",
-  "/admin/dashboard": "/admin",
-  "/admin/add-user": "/admin/users",
-  "/admin/users": "/admin/dashboard",
-  "/admin/reports": "/admin/dashboard",
-};
+    "/attendance/selection": "/attendance",
+    "/attendance/operational": "/attendance/selection",
+    "/attendance/non-operational": "/attendance/selection",
+    "/admin/dashboard": "/admin",
+    "/admin/add-user": "/admin/users",
+    "/admin/users": "/admin/dashboard",
+    "/admin/reports": "/admin/dashboard",
+  };
+
+  const pageTitleMap = {
+    "/": "JRFB Attendance Application",
+
+    "/attendance": "Attendance System",
+    "/attendance/selection": "Select Attendance Type",
+    "/attendance/operational": "Operational Attendance",
+    "/attendance/non-operational": "Non-Operational Attendance",
+
+    "/admin": "Admin Portal",
+    "/admin/dashboard": "Admin Dashboard",
+    "/admin/add-user": "Add User",
+    "/admin/users": "Manage Users",
+    "/admin/reports": "Reports",
+
+    "/createincidents": "Create Incident",
+    "/roles": "Assign Roles"
+  };
+
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
+
   if (path.startsWith("/attendance/")) {
   sessionStorage.removeItem("activity");
   }
@@ -28,9 +51,7 @@ export default function Navbar() {
   };
 
   const getTitle = () => {
-    if (isAdmin) return "Admin Portal";
-    if (isAttendance) return "Attendance System";
-    return "JRFB Attendance Application";
+    return pageTitleMap[path] || "JRFB Attendance Application";
   };
 
   return (
