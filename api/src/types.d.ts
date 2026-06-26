@@ -1,5 +1,6 @@
 import 'express-session';
 import {Request} from "express"
+import { Collection, Document } from "mongodb";
 
 declare module 'express-session' {
   interface SessionData {
@@ -11,6 +12,8 @@ declare module 'express-session' {
       id?: string;
       isAdmin?: boolean;
     };
+    canAssignRoles?: boolean;
+    roleAssignmentUnlockedAt?: number;
     groups?: string[];
     token?: string;
     csrfToken?: string;
@@ -59,4 +62,14 @@ interface AzureProfile {
 interface AzureGroupList {
   value: { id: string; displayName: string }[];
 }
+
+type CounterDocument = {
+  _id: string;
+  seq: number;
+};
+
+type EventServiceCollections = {
+  eventsCollection: Collection<Document>;
+  countersCollection: Collection<CounterDocument>;
+};
 }

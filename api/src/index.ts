@@ -1,6 +1,6 @@
 import express, { RequestHandler, Request, Response, NextFunction} from 'express';
 import cors, { CorsOptions } from 'cors';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId, AnyBulkWriteOperation, Document } from 'mongodb';
 import dotenv from 'dotenv';
 import fetch, { RequestInit as FetchRequestInit } from 'node-fetch';
 import ExcelJS from 'exceljs';
@@ -12,15 +12,37 @@ import { csrfMiddleware} from './middleware/csrfToken';
 import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
 import { promisify } from 'util';
-import { authLimiter, attendanceLimiter, adminLimiter } from './middleware/rateLimit';
+import {
+  csrfTokenLimiter,
+  authStatusLimiter,
+  authLimiter,
+  attendanceLimiter,
+  adminLimiter,
+  usernameCheckLimiter,
+  usernameSearchLimiter,
+  attendanceSubmitLimiter,
+  incidentCreateLimiter,
+  eventListLimiter,
+  adminReadLimiter,
+  adminUserMutationLimiter,
+  adminDeleteLimiter,
+  reportRunLimiter,
+  reportExportLimiter,
+  rolePinLimiter,
+  roleReadLimiter,
+  roleUpdateLimiter,
+} from "./middleware/rateLimit";
 import MongoStore from 'connect-mongo';
 import { sanitizeIncidentCreation, sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
 import { errorHandler } from './middleware/errorHandle'
+import { createEventService } from "./middleware/eventManagement";
+import { TTLCache } from "./middleware/simpleCache";
+import session from 'express-session';
+
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
-const isProd = process.env.NODE_ENV === "production";
 const DB_NAME = process.env.DB_NAME;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
 const sessionStoreUrl = process.env.SESSION_STORE_URL
@@ -30,6 +52,12 @@ const TENANT_ID = process.env.AZURE_TENANT_ID!;
 const CLIENT_ID = process.env.AZURE_CLIENT_ID!;
 const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.AZURE_REDIRECT_URI!;
+const eventListCache = new TTLCache<any[]>(30_000);
+const usernameSearchCache = new TTLCache<string[]>(30_000);
+const userNamesCache = new TTLCache<any[]>(5 * 60_000);
+const usersListCache = new TTLCache<any[]>(60_000);
+const reportUsersCache = new TTLCache<any[]>(5 * 60_000);
+
 const corsOptions: CorsOptions = {
   origin: [],
   methods: ['POST', 'GET'],
@@ -42,9 +70,8 @@ if (process.env.NODE_ENV === 'development') {
   corsOptions.origin = [`${FRONTEND_URL}`];
 }
 app.use(cors(corsOptions));
+
 app.use(express.json());
-import session from 'express-session';
-import { time } from 'console';
 
 app.use(
   session({
@@ -72,13 +99,13 @@ app.use(
   }),
 );
 
-app.disable('x-powered-by');
-
-app.set('trust proxy', 1);
-
-app.use(csrfMiddleware);
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 
 app.use(['/api/attendance'], attendanceLimiter)
+
 app.use(['/api/users', '/api/reports'], adminLimiter)
 
 app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
@@ -92,6 +119,12 @@ app.use(
   })
 )
 
+app.use(csrfMiddleware);
+
+app.disable('x-powered-by');
+
+app.set('trust proxy', 1);
+
 if (!cosmosDbUri) {
    // Ensure DB URI is defined before starting the server
   throw new Error('URI is not defined in the environment variables.');
@@ -103,7 +136,51 @@ client.connect().then(() => {
   const db = client.db(`${DB_NAME}`);
   const usersCollection = db.collection('Usernames');
   const recordsCollection = db.collection('Records');
-  const eventsCollection = db.collection('Events')
+  const eventsCollection = db.collection('Events');
+  const countersCollection = db.collection<{ _id: string; seq: number }>("Counters");
+  function invalidateUserCaches() {
+    usernameSearchCache.clear();
+    userNamesCache.clear();
+    usersListCache.clear();
+    reportUsersCache.clear();
+  }
+
+  function invalidateEventCaches() {
+    eventListCache.delete("listIncidents");
+    eventListCache.delete("listEvents");
+  }
+
+  async function getCachedReportUsers() {
+  const cached = reportUsersCache.get("reportUsers");
+
+  if (cached) {
+    return cached;
+  }
+
+  const users = await usersCollection
+    .find(
+      {},
+      {
+        projection: {
+          name: 1,
+          id: 1,
+          member_status: 1,
+          membership_classification: 1,
+          membership_type: 1,
+        },
+      }
+    )
+    .toArray();
+
+  reportUsersCache.set("reportUsers", users);
+
+  return users;
+}
+  const eventService = createEventService({
+    eventsCollection,
+    countersCollection
+  });
+
 
   async function fetchOrThrow<T>(url: string, init: FetchRequestInit): Promise<T> {
     const res = await fetch(url, init);
@@ -119,7 +196,55 @@ client.connect().then(() => {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
 
-  app.get('/csrf-token', (req, res) => {
+  const allowedRoles = [
+  "Crew Leader",
+  "Pump operator",
+  "Driver",
+  "Hose Operator",
+  "BA Operator",
+  "Traffic management",
+  "Chainsaw Operator",
+  "First Aid",
+  "Navigation",
+  "Foam",
+  "Hydrants",
+  "Ladders",
+  "Working on roofs",
+  "TIC",
+  "Flood Rescue",
+  "Burnover",
+];
+
+  const roleAssignmentUnlockMinutes = 30;
+
+  function isValidEventNumber(eventNumber: string) {
+    return /^\d{2}-\d{1,8}$/.test(eventNumber) || /^EVT-\d{5}$/.test(eventNumber);
+  }
+
+  function isValidEventDate(date: string) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(date);
+  }
+
+  const requireRoleAssignmentPin: RequestHandler = (req, res, next) => {
+    const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
+    const maxAge = roleAssignmentUnlockMinutes * 60 * 1000;
+
+    if (
+      req.session.canAssignRoles === true &&
+      Date.now() - unlockedAt <= maxAge
+    ) {
+      return next();
+    }
+
+    req.session.canAssignRoles = false;
+
+    return res.status(401).json({
+      ok: false,
+      message: "Role assignment PIN required.",
+    });
+  };
+
+  app.get('/csrf-token', csrfTokenLimiter, (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
   // Generates OAuth2 login URL with PKCE challenge
@@ -256,14 +381,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     isAdmin: !!req.session.user.isAdmin,
   });
 }
-  app.get('/auth/check', AuthCheck)
+  app.get('/auth/check', authStatusLimiter, AuthCheck)
 
   const sessionCheck: RequestHandler = (req, res) => {
       if (req.session?.user) return res.sendStatus(200);
     res.sendStatus(401);
 
   }
-  app.get('/auth/session', sessionCheck)
+  app.get('/auth/session', authStatusLimiter, sessionCheck)
 
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
@@ -282,32 +407,50 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const getUsersList: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
+
     try {
+      const cached = usersListCache.get("adminUsersList");
+
+      if (cached) {
+        return res.status(200).json(cached);
+      }
+
       const users = await usersCollection.find({}).toArray();
-      res.status(200).json(users);
-      return;
+
+      usersListCache.set("adminUsersList", users);
+
+      return res.status(200).json(users);
     } catch (error) {
-      console.error('Error fetching users:', error);
-      res.status(500).json({ message: 'Failed to fetch users' });
-      return;
+      console.error("Error fetching users:", error);
+      return res.status(500).json({ message: "Failed to fetch users" });
     }
   };
-  app.get('/api/users/list', requireAdmin, getUsersList);
+  app.get('/api/users/list', adminReadLimiter, requireAdmin, getUsersList);
 
 
   const UserNames: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
+
     try {
-      const users = await usersCollection.find({}, { projection: { name: 1, _id: 0 } }).toArray();
-      res.status(200).json(users);
-      return;
+      const cached = userNamesCache.get("adminUserNames");
+
+      if (cached) {
+        return res.status(200).json(cached);
+      }
+
+      const users = await usersCollection
+        .find({}, { projection: { name: 1, _id: 0 } })
+        .toArray();
+
+      userNamesCache.set("adminUserNames", users);
+
+      return res.status(200).json(users);
     } catch (err) {
-      res.status(500).json({ error: "Failed to fetch user names" });
-      return;
+      return res.status(500).json({ error: "Failed to fetch user names" });
     }
   };
-  app.get('/api/users/names', requireAdmin, UserNames)
+  app.get('/api/users/names', adminReadLimiter, requireAdmin, UserNames)
 
 
   const addUser: RequestHandler = async (req, res) => {
@@ -335,6 +478,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         membership_type: Type,
       });
       res.status(201).json({ message: 'User added successfully', result });
+      invalidateUserCaches();
       return;
     } catch (error) {
       console.error('Error adding user', error);
@@ -342,7 +486,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return
     }
   };
-  app.post('/api/users/addUser', sanitizeUser, requireAdmin, addUser)
+  app.post('/api/users/addUser', adminUserMutationLimiter, sanitizeUser, requireAdmin, addUser)
 
 
   const deleteUser: RequestHandler = async (req, res) => {
@@ -367,6 +511,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return;
       }
       res.status(200).json({success: true, message: `${deleteResult.deletedCount} user(s) deleted successfully` });
+      invalidateUserCaches();
       return;
     } catch (error) {
       console.error('Error deleting users', error);
@@ -375,7 +520,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   };
-  app.post('/api/users/delete', requireAdmin, deleteUser)
+  app.post('/api/users/delete', adminDeleteLimiter, requireAdmin, deleteUser)
 
 
   const updateUser: RequestHandler = async (req, res) => {
@@ -406,6 +551,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         const userOk    = !!(updateUser?.modifiedCount ?? updateUser);
         const recordOk  = !!(updateRecord?.modifiedCount ?? updateRecord);
         if (userOk && recordOk) {
+          invalidateUserCaches();
           return res.status(200).json({
             success: true,
             message: "User and records updated.",
@@ -415,6 +561,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         }
 
         if (userOk && !recordOk) {
+          invalidateUserCaches();
           return res.status(200).json({
             success: true,
             message: "User updated. No records found to update.",
@@ -424,6 +571,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         }
 
         if (!userOk && recordOk) {
+          invalidateUserCaches();
           return res.status(200).json({
             success: true,
             partial: true,
@@ -432,7 +580,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             updateRecord,
           });
         }
-
         return res.status(404).json({
           success: false,
           message: "No user or records found to update.",
@@ -445,13 +592,24 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return;
       }
   }
-  app.post('/api/users/updateRecord', sanitizeUpdatedUser, requireAdmin, updateUser)
+  app.post('/api/users/updateRecord', adminUserMutationLimiter, sanitizeUpdatedUser, requireAdmin, updateUser)
 
 
   const reportRun: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
-  const {
+
+    function getActivityDetails(record: any) {
+      return {
+        baType: record.details?.baType ?? record.baType,
+        chainsawType: record.details?.chainsawType ?? record.chainsawType,
+        deploymentType: record.details?.deploymentType ?? record.deploymentType,
+        deploymentLocation: record.details?.deploymentLocation ?? record.deploymentLocation,
+        otherType: record.details?.otherType ?? record.otherType,
+      };
+    }
+
+    const {
       startEpoch,
       endEpoch,
       name,
@@ -459,7 +617,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       operational,
       detailed,
       includeZeroAttendance,
-      roles
     } = req.body;
     try {
       const MAX_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years ms
@@ -474,9 +631,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       if (name) query.name = name;
       if (activity) query.activity = activity;
       if (operational) query.operational = operational;
-      if(Array.isArray(roles) && roles.length === 1){
-        query.roles = roles[0]
-      }
       const MAX_ROWS = 50000;
       const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
       const records = await recordsCursor.toArray();
@@ -487,20 +641,41 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return;
       }
       if(detailed === true){
-      const transformed = records.map(record => ({
-        ...record,
-        timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm')
-      }));
+      const transformed = records.map(record => {
+        const details = getActivityDetails(record);
+
+        return {
+          ...record,
+
+          timestampLocal: moment
+            .tz(record.epochTimestamp, "Australia/Sydney")
+            .format("DD-MM-YYYY HH:mm"),
+
+          ...(details.baType && { baType: details.baType }),
+          ...(details.chainsawType && { chainsawType: details.chainsawType }),
+          ...(details.deploymentType && { deploymentType: details.deploymentType }),
+          ...(details.deploymentLocation && {
+            deploymentLocation: details.deploymentLocation,
+          }),
+          ...(details.otherType && { otherType: details.otherType }),
+        };
+      });
       res.status(200).json({ count: transformed.length, records: transformed });
       return;
     } else {
       const userDataMap = new Map<string, any>();
       const usersWithRecords = new Set<string>();
+
+      const allUsers = await getCachedReportUsers();
+
+      const usersByName = new Map(
+        allUsers.map((user: any) => [user.name, user])
+      );
        for (const record of records) {
           const userName = record.name;
           usersWithRecords.add(userName);
             if (!userDataMap.has(userName)) {
-            const userDetails = await usersCollection.findOne({ name: userName });
+            const userDetails = usersByName.get(userName);
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
@@ -558,41 +733,50 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/run', sanitizeReportingRunInput, requireAdmin, reportRun)
+  app.post('/api/reports/run', reportRunLimiter, sanitizeReportingRunInput, requireAdmin, reportRun)
 
 
   const reportExport: RequestHandler = async (req, res) => {
   const authedReq = req as AuthedRequest;
   authedReq.user = authedReq.session.user;
   function isEmptyCellValue(v: unknown): boolean{
-  if (v == null) return true;
-  if (typeof v === "string") return v.trim() === ""
-  if (typeof v === "object"){
-    const obj = v as any;
-    if (obj.rechText) return obj.richText.length === 0;
-    if (obj.text) return String(obj.text).trim() === "";
-    if (obj.formula) return false; 
-    if (obj.result != null) return false;
+    if (v == null) return true;
+    if (typeof v === "string") return v.trim() === ""
+    if (typeof v === "object"){
+      const obj = v as any;
+      if (obj.rechText) return obj.richText.length === 0;
+      if (obj.text) return String(obj.text).trim() === "";
+      if (obj.formula) return false; 
+      if (obj.result != null) return false;
+    }
+    return false
   }
-  return false
-}
-function deleteColumnIfEmpty(
-  worksheet: ExcelJS.Worksheet,
-  colNumber: number,
-  headerRowNumber = 1
-) {
-  let hasData = false;
+  function deleteColumnIfEmpty(
+    worksheet: ExcelJS.Worksheet,
+    colNumber: number,
+    headerRowNumber = 1
+  ) {
+    let hasData = false;
 
-  worksheet.eachRow({includeEmpty: true}, (row, rowNumber) => {
-    if (rowNumber <= headerRowNumber) return;
+    worksheet.eachRow({includeEmpty: true}, (row, rowNumber) => {
+      if (rowNumber <= headerRowNumber) return;
 
-    const cellValue = row.getCell(colNumber).value;
-    if(!isEmptyCellValue(cellValue)) hasData = true;
-  });
-  if (!hasData){
-    worksheet.spliceColumns(colNumber, 1);
+      const cellValue = row.getCell(colNumber).value;
+      if(!isEmptyCellValue(cellValue)) hasData = true;
+    });
+    if (!hasData){
+      worksheet.spliceColumns(colNumber, 1);
+    }
   }
-}
+  function getActivityDetails(record: any) {
+    return {
+      baType: record.details?.baType ?? record.baType,
+      chainsawType: record.details?.chainsawType ?? record.chainsawType,
+      deploymentType: record.details?.deploymentType ?? record.deploymentType,
+      deploymentLocation: record.details?.deploymentLocation ?? record.deploymentLocation,
+      otherType: record.details?.otherType ?? record.otherType,
+    };
+  }
   const {
       startEpoch,
       endEpoch,
@@ -600,7 +784,6 @@ function deleteColumnIfEmpty(
       activity,
       operational,
       includeZeroAttendance,
-      roles,
       detailed,
       formattedStart,
       formattedEnd
@@ -614,9 +797,6 @@ function deleteColumnIfEmpty(
         if (name) query.name = name;
         if (activity) query.activity = activity;
         if (operational) query.operational = operational;
-        if(Array.isArray(roles) && roles.length === 1){
-        query.roles = roles[0]
-        };
         const MAX_ROWS = 50000;
         const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
         const records = await recordsCursor.toArray();
@@ -629,12 +809,19 @@ function deleteColumnIfEmpty(
         const userDataMap = new Map<string, any>();
         const userNoAttendanceDataMap = new Map<string, any>();
         const usersWithRecords = new Set<string>();
+        
+        const allUsers = await getCachedReportUsers();
+
+        const usersByName = new Map(
+          allUsers.map((user: any) => [user.name, user])
+        );
+
         for (const record of records) {
           const userName = record.name;
           usersWithRecords.add(userName);
           if(detailed === false){
             if (!userDataMap.has(userName)) {
-            const userDetails = await usersCollection.findOne({ name: userName });
+            const userDetails = usersByName.get(userName);
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
@@ -648,18 +835,26 @@ function deleteColumnIfEmpty(
                 });
               }
             }
+            const details = getActivityDetails(record);
+
             const userStats = userDataMap.get(userName);
             if (userStats) {
               userStats.records.push({
-                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm'),
+                timestampLocal: moment
+                  .tz(record.epochTimestamp, "Australia/Sydney")
+                  .format("DD-MM-YYYY HH:mm"),
+
                 operational: record.operational,
                 activity: record.activity,
-                ...(record.baType && { baType: record.baType }),
-                ...(record.chainsawType && { chainsawType: record.chainsawType }),
-                ...(record.deploymentType && { deploymentType: record.deploymentType }),
-                ...(record.otherType && { otherType: record.otherType }),
-                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
-                ...(record.roles && { roles: record.roles})
+
+                ...(details.baType && { baType: details.baType }),
+                ...(details.chainsawType && { chainsawType: details.chainsawType }),
+                ...(details.deploymentType && { deploymentType: details.deploymentType }),
+                ...(details.otherType && { otherType: details.otherType }),
+                ...(details.deploymentLocation && {
+                  deploymentLocation: details.deploymentLocation,
+                }),
+
               });
 
               if (record.operational === "Operational") userStats.operationalActivities++;
@@ -681,18 +876,25 @@ function deleteColumnIfEmpty(
               }
               
               }
+            const details = getActivityDetails(record);
             const userStats = userDataMap.get(userName);
             if (userStats) {
               userStats.records.push({
-                timestampLocal: moment.tz(record.epochTimestamp, 'Australia/Sydney').format('DD-MM-YYYY HH:mm'),
+                timestampLocal: moment
+                  .tz(record.epochTimestamp, "Australia/Sydney")
+                  .format("DD-MM-YYYY HH:mm"),
+
                 operational: record.operational,
                 activity: record.activity,
-                ...(record.baType && { baType: record.baType }),
-                ...(record.chainsawType && { chainsawType: record.chainsawType }),
-                ...(record.deploymentType && { deploymentType: record.deploymentType }),
-                ...(record.otherType && { otherType: record.otherType }),
-                ...(record.deploymentLocation && { deploymentLocation: record.deploymentLocation }),
-                ...(record.roles && { roles: record.roles})
+
+                ...(details.baType && { baType: details.baType }),
+                ...(details.chainsawType && { chainsawType: details.chainsawType }),
+                ...(details.deploymentType && { deploymentType: details.deploymentType }),
+                ...(details.otherType && { otherType: details.otherType }),
+                ...(details.deploymentLocation && {
+                  deploymentLocation: details.deploymentLocation,
+                }),
+
               });
             }
             }
@@ -739,7 +941,6 @@ function deleteColumnIfEmpty(
           'Activity',
           'Activity Detail',
           'Activity Location',
-          'Roles'
         ];
         worksheet.addRow(header);
         }
@@ -771,10 +972,6 @@ function deleteColumnIfEmpty(
               activityType = record.deploymentType || "";
               activityLocation = record.deploymentLocation || "";
             }
-            const roles =
-              Array.isArray(record.roles) && record.roles.length > 0
-                ? record.roles.join(", ")
-                : ""
             const row = [
               record.timestampLocal,
               user.name,
@@ -786,7 +983,6 @@ function deleteColumnIfEmpty(
               record.activity,
               activityType,
               activityLocation,
-              roles
             ];
             worksheet.addRow(row);
             }
@@ -823,98 +1019,219 @@ function deleteColumnIfEmpty(
       return;
     }
   }
-  app.post('/api/reports/export', sanitizeReportingExportInput, requireAdmin, reportExport)
+  app.post('/api/reports/export', reportExportLimiter, sanitizeReportingExportInput, requireAdmin, reportExport)
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
-  try {
-      const username = (req.query.u as string | undefined)?.trim() ?? '';
-    if (username.length < 3 || username.length > 20 || !/^[a-zA-Z]+.?[a-zA-Z]+-?[a-zA-Z]+?$/.test(username)) {
-      res.status(400).json({ ok: false, message: 'Invalid username' });
-      return;
-    }
+    try {
+      const username = String(req.body.username ?? "").trim();
 
-    const exists = await usersCollection.findOne({ username });
-      if (!exists){
-        res.status(404).json({ ok: false });
-        return;}
-    req.session.validUsername = username;               // 🔑 remember validation in this session
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('checkUser error', e);
-    res.status(500).json({ ok: false });  }
+      const usernameRegex = /^[A-Za-z]+(?:\.[A-Za-z]+)?(?:-[A-Za-z]+)?$/;
+
+      if (
+        username.length < 3 ||
+        username.length > 40 ||
+        !usernameRegex.test(username)
+      ) {
+        req.session.validUsername = undefined;
+
+        return res.status(400).json({
+          ok: false,
+          message: "Invalid username"
+        });
+      }
+
+      const exists = await usersCollection.findOne(
+        { username },
+        {
+          projection: {
+            _id: 1,
+            username: 1
+          }
+        }
+      );
+
+      if (!exists) {
+        req.session.validUsername = undefined;
+
+        return res.status(404).json({
+          ok: false,
+          message: "Username not found"
+        });
+      }
+
+      req.session.validUsername = username;
+
+      return res.status(200).json({
+        ok: true
+      });
+    } catch (e) {
+      console.error("checkUser error", e);
+
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to check username"
+      });
+    }
   };
-  app.get('/api/attendance/checkUser', CheckUsername)
+  app.post('/api/attendance/checkUser', usernameCheckLimiter, CheckUsername)
 
 
   const submitAttendance: RequestHandler = async (req, res) => {
   
   const spaceName = (req.body.name as string).trim();
-  const dotName   = spaceName.replace(/\s+/g, '.');   
+  const dotName   = spaceName.replace(/\s+/g, '.');  
+  
+  const details: any = {};
+
+  const eventRequiredActivities = [
+  "Incident-Call",
+  "Pile-Burn",
+  "Hazard-Reduction",
+  "Deployment",
+  "Strike-Team",
+  "Training",
+  "Community-Engagement"
+  ];
+
+  function activityRequiresEvent(activity: string) {
+  return eventRequiredActivities.includes(activity);
+  }
 
   if (req.session.validUsername !== dotName) {
     res.status(403).json({ message: 'Username not validated in this session' });
     return;
   }
+  try{
+    const {
+      name,
+      operational,
+      activity,
+      epochTimestamp,
+      baType,
+      chainsawType,
+      deploymentType,
+      deploymentLocation,
+      otherType,
+      eventNumber
+    } = req.body;
 
-  const {
-    name,
-    operational,
-    activity,
-    epochTimestamp,
-    baType,
-    chainsawType,
-    deploymentType,
-    deploymentLocation,
-    otherType,
-    roles
-  } = req.body;
-  const record: any = {
-    name,
-    operational,
-    activity,
-    roles,
-    epochTimestamp
-  };
-  // Conditional data fields based on activity type
-  if (activity === 'Chainsaw-Checks') {
-    record.chainsawType = chainsawType;
-  }
+    const eventDate = moment(epochTimestamp)
+      .tz("Australia/Sydney")
+      .format("YYYY-MM-DD");
 
-  if (activity === 'BA-Checks') {
-    record.baType = baType;
-  }
+    let finalEventNumber: string | undefined = undefined;
+    let eventCreated = false;
 
-  if (activity === 'Deployment') {
-    record.deploymentType = deploymentType;
-    record.deploymentLocation = deploymentLocation;
-  }
-  if (activity === 'Other-Non-operational' || activity === 'Other-operational') {
-    record.otherType = otherType;
-  }
+    if (activityRequiresEvent(activity)) {
+      const { event, eventCreated: created } = await eventService.resolveEventForAttendance(
+        activity,
+        eventDate,
+        eventNumber
+      );
 
-  try {
+      finalEventNumber = event.eventNumber;
+      eventCreated = created;
+    }
+    // Conditional data fields based on activity type
+    if (activity === "Chainsaw-Checks") {
+      details.chainsawType = chainsawType;
+    }
+
+    if (activity === "BA-Checks") {
+      details.baType = baType;
+    }
+
+    if (activity === "Deployment") {
+      details.deploymentType = deploymentType;
+      details.deploymentLocation = deploymentLocation;
+    }
+
+    if (activity === "Other-Non-operational" || activity === "Other-operational") {
+      details.otherType = otherType;
+    }
+
+    const record: any = {
+      name,
+      operational,
+      activity,
+      details,
+      roles: [] as string[],
+      epochTimestamp,
+    };
+
+    if (finalEventNumber) {
+      record.eventNumber = finalEventNumber;
+    }
+
     const result = await recordsCollection.insertOne(record);
-    res.status(200).json({ message: 'Data submitted successfully', result });
+      if (eventCreated) {
+        invalidateEventCaches();
+      }
+
+      return res.status(201).json({
+        message: eventCreated
+          ? "Attendance submitted successfully. A new event was created."
+          : "Attendance submitted successfully.",
+        eventCreated,
+        eventNumber: finalEventNumber,
+        result
+      });
   } catch (error) {
-    console.error('Error submitting data', error);
-    res.status(500).json({ message: 'Failed to submit data' });
-  }
+    console.error("Error submitting attendance:", error);
+    return res.status(500).json({
+      message: "Failed to submit attendance."
+    });
+  };
 };
-  app.post('/api/attendance/submit', sanitizeAttendanceInput, submitAttendance)
+  app.post('/api/attendance/submit', attendanceSubmitLimiter, sanitizeAttendanceInput, submitAttendance)
 
 
   const listNames: RequestHandler = async (req, res) => {
-  const query = (req.query.q as string | undefined) ?? '';
-    const safeRegex = new RegExp('^' + escapeStringRegexp(query), 'i');
+    try {
+      const query = String(req.query.q ?? "").trim().toLowerCase();
 
-    const names = await usersCollection
-      .find({ username: new RegExp('^' + escapeStringRegexp(query), 'i') }, { projection: { username: 1, _id: 0 } })
-      .toArray();
+      if (query.length < 2) {
+        return res.status(200).json([]);
+      }
 
-    res.status(200).json(names.map((u) => u.username));
+      if (query.length > 50) {
+        return res.status(400).json({ message: "Search query too long." });
+      }
+
+      const cacheKey = `username:${query}`;
+      const cached = usernameSearchCache.get(cacheKey);
+
+      if (cached) {
+        return res.status(200).json(cached);
+      }
+
+      const safeRegex = new RegExp("^" + escapeStringRegexp(query), "i");
+
+      const names = await usersCollection
+        .find(
+          { username: safeRegex },
+          {
+            projection: {
+              username: 1,
+              _id: 0,
+            },
+          }
+        )
+        .limit(10)
+        .toArray();
+
+      const result = names.map((u) => u.username);
+
+      usernameSearchCache.set(cacheKey, result);
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Unable to list usernames:", error);
+      return res.status(500).json({ message: "Unable to list usernames." });
+    }
   };
-  app.get('/api/attendance/usernameList',  listNames)
+  app.get('/api/attendance/usernameList',  usernameSearchLimiter, listNames)
   
   const createIncident: RequestHandler = async (req, res) => {
     const {
@@ -924,8 +1241,8 @@ function deleteColumnIfEmpty(
     } = req.body
 
     const record = {
-      incidentNumber: activID,
-      incidentDate: date,
+      eventNumber: activID,
+      eventDate: date,
       description: incidentDescription,
       eventType: "incident",
       createdAtEpoch: Date.now()
@@ -933,6 +1250,7 @@ function deleteColumnIfEmpty(
     try {
     const result = await eventsCollection.insertOne(record);
     res.status(200).json({ message: 'Data submitted successfully', result });
+    invalidateEventCaches();
     } 
     catch (error: any) {
       if (error?.code === 11000) {
@@ -947,28 +1265,360 @@ function deleteColumnIfEmpty(
       });
     }
   }
-  app.post('/api/attendance/createIncident', sanitizeIncidentCreation, createIncident)
+  app.post('/api/attendance/createIncident', incidentCreateLimiter, sanitizeIncidentCreation, createIncident)
   
   const listIncidents: RequestHandler = async (req, res) => {
-    try{
-    const incidents = await eventsCollection.find(
-      { eventType: "incident" },
-      {
-        projection: {
-          _id: 0,
-          incidentNumber: 1,
-          incidentDate: 1,
-          description: 1
-        }
-      }
-    ).toArray();
-    res.status(200).json(incidents)
-  } catch {
-    res.status(500).json({message:"An error occured"})
-  }
+    const cached = eventListCache.get("listIncidents");
+
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const thirtyDaysAgoString = thirtyDaysAgo.toISOString().slice(0, 10);
+
+    try {
+      const incidents = await eventsCollection
+        .find(
+          {
+            eventType: "incident",
+            eventDate: { $gte: thirtyDaysAgoString },
+          },
+          {
+            projection: {
+              _id: 0,
+              eventNumber: 1,
+              eventDate: 1,
+              description: 1,
+            },
+          }
+        )
+        .sort({ eventDate: -1 })
+        .limit(100)
+        .toArray();
+
+      eventListCache.set("listIncidents", incidents);
+
+      return res.status(200).json(incidents);
+    } catch {
+      return res.status(500).json({ message: "An error occurred" });
+    }
+  };
+  app.get('/api/attendance/listIncidents', eventListLimiter, listIncidents)
   
+  const listEvents: RequestHandler = async (req, res) => {
+    const cached = eventListCache.get("listEvents");
+
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    const thirtyDaysAgoString = thirtyDaysAgo.toISOString().slice(0, 10);
+
+    try {
+      const events = await eventsCollection
+        .find(
+          {
+            eventType: { $ne: "incident" },
+            eventDate: { $gte: thirtyDaysAgoString },
+          },
+          {
+            projection: {
+              _id: 0,
+              eventNumber: 1,
+              eventDate: 1,
+              description: 1,
+            },
+          }
+        )
+        .sort({ eventDate: -1 })
+        .limit(100)
+        .toArray();
+
+      eventListCache.set("listEvents", events);
+
+      return res.status(200).json(events);
+    } catch {
+      return res.status(500).json({ message: "An error occurred" });
+    }
+  };
+  app.get('/api/attendance/listEvents', eventListLimiter, listEvents)
+
+  const roleAssignmentStatus: RequestHandler = (req, res) => {
+  const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
+  const maxAge = roleAssignmentUnlockMinutes * 60 * 1000;
+
+  const unlocked =
+    req.session.canAssignRoles === true &&
+    Date.now() - unlockedAt <= maxAge;
+
+  if (!unlocked) {
+    req.session.canAssignRoles = false;
   }
-  app.get('/api/attendance/listIncidents', listIncidents)
+
+  return res.status(200).json({
+    unlocked,
+  });
+  };
+  app.get( "/api/attendance/roleAssignment/status", roleReadLimiter, roleAssignmentStatus);
+
+  const roleAssignmentUnlock: RequestHandler = async (req, res) => {
+    try {
+      const pin = String(req.body.pin ?? "").trim();
+
+      if (!/^\d{4}$/.test(pin)) {
+        req.session.canAssignRoles = false;
+
+        return res.status(400).json({
+          ok: false,
+          message: "Invalid PIN format.",
+        });
+      }
+
+      const expectedPin = process.env.ROLE_ASSIGNMENT_PIN;
+
+      if (!expectedPin || !/^\d{4}$/.test(expectedPin)) {
+        return res.status(500).json({
+          ok: false,
+          message: "Role assignment PIN is not configured correctly.",
+        });
+      }
+
+      if (pin !== expectedPin) {
+        req.session.canAssignRoles = false;
+
+        return res.status(403).json({
+          ok: false,
+          message: "Invalid PIN.",
+        });
+      }
+
+      req.session.canAssignRoles = true;
+      req.session.roleAssignmentUnlockedAt = Date.now();
+
+      return res.status(200).json({
+        ok: true,
+        message: "Role assignment unlocked.",
+      });
+    } catch (error) {
+      console.error("Role assignment unlock error:", error);
+
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to unlock role assignment.",
+      });
+    }
+  };
+  app.post( "/api/attendance/roleAssignment/unlock", rolePinLimiter, roleAssignmentUnlock );
+
+  const roleAssignmentEventsByDate: RequestHandler = async (req, res) => {
+    try {
+      const date = String(req.query.date ?? "").trim();
+
+      if (!isValidEventDate(date)) {
+        return res.status(400).json({
+          message: "Invalid date format. Use YYYY-MM-DD.",
+        });
+      }
+
+      const events = await eventsCollection
+        .find(
+          {
+            eventDate: date,
+          },
+          {
+            projection: {
+              _id: 0,
+              eventNumber: 1,
+              eventDate: 1,
+              eventType: 1,
+              description: 1,
+            },
+          }
+        )
+        .limit(100)
+        .toArray();
+
+      events.sort((a: any, b: any) => {
+        const typeCompare = String(a.eventType ?? "").localeCompare(
+          String(b.eventType ?? "")
+        );
+
+        if (typeCompare !== 0) return typeCompare;
+
+        return String(a.eventNumber ?? "").localeCompare(
+          String(b.eventNumber ?? "")
+        );
+      });
+
+      return res.status(200).json(events);
+    } catch (error) {
+      console.error("Error loading role assignment events:", error);
+
+      return res.status(500).json({
+        message: "Failed to load events.",
+      });
+    }
+  };
+  app.get( "/api/attendance/roleAssignment/events", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentEventsByDate );
+
+  const roleAssignmentAttendees: RequestHandler = async (req, res) => {
+    try {
+      const eventNumber = String(req.query.eventNumber ?? "").trim();
+
+      if (!isValidEventNumber(eventNumber)) {
+        return res.status(400).json({
+          message: "Invalid event number.",
+        });
+      }
+
+      const attendees = await recordsCollection
+        .find(
+          {
+            eventNumber,
+          },
+          {
+            projection: {
+              _id: 1,
+              name: 1,
+              operational: 1,
+              activity: 1,
+              eventNumber: 1,
+              roles: 1,
+              epochTimestamp: 1,
+            },
+          }
+        )
+        .sort({
+          name: 1,
+        })
+        .limit(200)
+        .toArray();
+
+      const dto = attendees.map((record: any) => ({
+        recordId: record._id.toString(),
+        name: record.name,
+        operational: record.operational,
+        activity: record.activity,
+        eventNumber: record.eventNumber,
+        roles: Array.isArray(record.roles) ? record.roles : [],
+        timestampLocal: moment
+          .tz(record.epochTimestamp, "Australia/Sydney")
+          .format("DD-MM-YYYY HH:mm"),
+      }));
+
+      return res.status(200).json(dto);
+    } catch (error) {
+      console.error("Error loading role assignment attendees:", error);
+
+      return res.status(500).json({
+        message: "Failed to load attendees.",
+      });
+    }
+  };
+  app.get( "/api/attendance/roleAssignment/attendees", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentAttendees );
+
+  const updateEventRoles: RequestHandler = async (req, res) => {
+    try {
+      const eventNumber = String(req.body.eventNumber ?? "").trim();
+      const updates = req.body.updates;
+
+      if (!isValidEventNumber(eventNumber)) {
+        return res.status(400).json({
+          message: "Invalid event number.",
+        });
+      }
+
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({
+          message: "No role updates provided.",
+        });
+      }
+
+      if (updates.length > 200) {
+        return res.status(400).json({
+          message: "Too many role updates.",
+        });
+      }
+
+      const now = Date.now();
+      const operations: AnyBulkWriteOperation<Document>[] = [];
+
+      for (const update of updates) {
+        const recordId = String(update.recordId ?? "").trim();
+        const roles = update.roles;
+
+        if (!ObjectId.isValid(recordId)) {
+          return res.status(400).json({
+            message: "Invalid record ID.",
+          });
+        }
+
+        if (!Array.isArray(roles)) {
+          return res.status(400).json({
+            message: "Roles must be an array.",
+          });
+        }
+
+        const cleanRoles = [
+          ...new Set(
+            roles.map((role: unknown) => String(role).trim()).filter(Boolean)
+          ),
+        ];
+
+        const invalidRoles = cleanRoles.filter(
+          (role) => !allowedRoles.includes(role)
+        );
+
+        if (invalidRoles.length > 0) {
+          return res.status(400).json({
+            message: `Invalid roles: ${invalidRoles.join(", ")}`,
+          });
+        }
+
+        operations.push({
+          updateOne: {
+            filter: {
+              _id: new ObjectId(recordId),
+              eventNumber,
+            },
+            update: {
+              $set: {
+                roles: cleanRoles,
+                rolesUpdatedAtEpoch: now,
+              },
+            },
+          },
+        });
+      }
+
+      const result = await recordsCollection.bulkWrite(operations);
+
+      return res.status(200).json({
+        message: "Roles updated successfully.",
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
+    } catch (error) {
+      console.error("Error updating event roles:", error);
+
+      return res.status(500).json({
+        message: "Failed to update roles.",
+      });
+    }
+  };
+
+app.post( "/api/attendance/roleAssignment/updateRoles", roleUpdateLimiter, requireRoleAssignmentPin, updateEventRoles );
+
 app.use(errorHandler);
 
   app.listen(port, () => {

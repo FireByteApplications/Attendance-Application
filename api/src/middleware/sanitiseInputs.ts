@@ -45,16 +45,8 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     deploymentType,
     deploymentLocation,
     otherType,
-    roles
+    eventNumber
   } = req.body;
-
-  const sanitisedRoles = sanitiseRoles(roles);
-  if (sanitisedRoles === null){
-    res.status(400).json({
-      message: `Invalid roles. Must be an array containing only: ${Array.from(allowedRoles).join(", ")}`,
-    });
-    return
-  }
 
   const sanitized = {
     name: validator.trim(name || ''),
@@ -65,7 +57,7 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     deploymentType: validator.trim(deploymentType || ''),
     deploymentLocation: validator.trim(deploymentLocation || ''),
     otherType: validator.trim(otherType || ''),
-    roles: sanitisedRoles
+    eventNumber : validator.trim(String(eventNumber ?? ""))
   };
 
   const validators = [
@@ -76,7 +68,8 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     { value: sanitized.chainsawType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'chainsawType' },
     { value: sanitized.deploymentType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'deploymentType' },
     { value: sanitized.deploymentLocation, pattern: /^[a-zA-Z0-9\s]+$/, field: 'deploymentLocation' },
-    { value: sanitized.otherType, pattern: /^[a-zA-Z0-9\s\.,\-\']+$/, field: 'otherType'}
+    { value: sanitized.otherType, pattern: /^[a-zA-Z0-9\s\.,\-\']+$/, field: 'otherType'},
+    { value: sanitized.eventNumber, pattern: /^\d{2}-\d{1,8}$/, field: 'eventNumber'}
   ]
 
   for (const { value, pattern, field } of validators) {
@@ -371,7 +364,7 @@ export function sanitizeIncidentCreation(req: Request, res: Response, next: Next
 
   if (!sanitized.IncidentDescription) {
     errors.push("Incident description is required");
-  } else if (!/^[A-Za-z0-9]+$/.test(sanitized.IncidentDescription)) {
+  } else if (!/^[A-Za-z0-9\s]+$/.test(sanitized.IncidentDescription)) {
     errors.push("Incident description can only contain letters and numbers");
   }
 
