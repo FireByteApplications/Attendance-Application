@@ -39,37 +39,58 @@ export default function Login() {
         }, [csrfToken]);
   // Autocomplete effect
   useEffect(() => {
-  if (usernameManuallySelected) {
-    setUsernameManuallySelected(false); // reset for future typing
-    return;
-  }
+    if (usernameManuallySelected) {
+      setUsernameManuallySelected(false);
+      return;
+    }
 
-  const fetchNames = async () => {
-    if (username.length === 0) {
+    const query = username.trim();
+
+    if (query.length < 2) {
+      setNameSuggestions([]);
       setShowSuggestions(false);
       return;
     }
 
-    try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/usernameList?q=${encodeURIComponent(username)}`,
-        { credentials: "include" }          // GET + cookie, no body needed
-      );
-      const result = await response.json();
-      const names = Array.isArray(result) ? result : result.names || [];
-      const filtered = names.filter(name =>
-        name.toLowerCase().includes(username.toLowerCase())
-      );
-      setNameSuggestions(filtered);
-      setShowSuggestions(filtered.length > 0);
-    } catch (error) {
-      console.error("Error fetching names:", error);
-      setShowSuggestions(false);
-    }
-  };
+    const controller = new AbortController();
 
-  fetchNames();
-}, [username]);
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `${apiurl}/api/attendance/usernameList?q=${encodeURIComponent(query)}`,
+          {
+            method: "GET",
+            credentials: "include",
+            signal: controller.signal,
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          setNameSuggestions([]);
+          setShowSuggestions(false);
+          return;
+        }
+
+        const names = Array.isArray(result) ? result : result.names || [];
+
+        setNameSuggestions(names);
+        setShowSuggestions(names.length > 0);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error fetching names:", error);
+        }
+
+        setShowSuggestions(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [username]);
 
 
   // Hide suggestions when clicking outside
@@ -93,10 +114,15 @@ const handleSubmit = async (e) => {
   e.preventDefault();
 
   try {
-    const res = await fetch(
-      `${apiurl}/api/attendance/checkUser?u=${encodeURIComponent(username)}`,
-      { credentials: 'include' },
-    );
+    const res = await fetch(`${apiurl}/api/attendance/checkUser`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+      },
+      body: JSON.stringify({ username }),
+    });
 
     if (!res.ok) {
       throw new Error('invalid');

@@ -216,8 +216,8 @@ export default function CreateIncidentsPage(){
                             <tbody>
                                 {incidentsArray.map((incidentsArray, index) => (
                                     <tr key={index}>
-                                        <td>{incidentsArray.incidentDate}</td>
-                                        <td>{incidentsArray.incidentNumber}</td>
+                                        <td>{incidentsArray.eventDate}</td>
+                                        <td>{incidentsArray.eventNumber}</td>
                                         <td>{incidentsArray.description}</td>
                                     </tr>
                                 ))}
