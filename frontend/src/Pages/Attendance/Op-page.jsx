@@ -4,6 +4,8 @@ import styles from "../../styles/Attendance.module.css";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
 import CheckboxContainer from '../../Components/checkboxContainer.jsx'
+import { validateOperationalAttendanceData } from "../../Utils/formValidation.js";
+
 const activities = [
   "Incident-Call",
   "Strike-Team",
@@ -17,7 +19,11 @@ const activities = [
   "Other-operational",
 ];
 
+
+
 const apiurl = import.meta.env.VITE_API_BASE_URL;
+
+
 
 export default function OperationalPage() {
   const csrfToken = useCsrfToken(apiurl);
@@ -31,15 +37,71 @@ export default function OperationalPage() {
   const [deploymentType, setDeploymentType] = useState("");
   const [deploymentLocation, setDeploymentLocation] = useState("");
   const [otherType, setOtherType] = useState("")
-  const [selectedRoles, setSelectedRoles] = useState([])
+  const [validateIncidentID, setIncidentId] = useState("")
+  const [submitMessage, setSubmitMessage] = useState(null);
+  const [submitStatus, setSubmitStatus] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [incidents, setIncidents] = useState([])
+  const [events, setEvents] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState("")
+
   const navigate = useNavigate();
+
+  const fetchEvents = async () => {
+  try {
+    const response = await fetch(`${apiurl}/api/attendance/listevents`, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error(result.message || "Failed to fetch Events");
+      return;
+    }
+
+    setEvents(result);
+    console.log(result);
+  } catch (error) {
+    console.error("Error fetching Events:", error);
+  }
+};
+
+const fetchIncidents = async () => {
+  try {
+    const response = await fetch(`${apiurl}/api/attendance/listIncidents`, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error(result.message || "Failed to fetch Incidents");
+      return;
+    }
+
+    setIncidents(result);
+    console.log(result);
+  } catch (error) {
+    console.error("Error fetching Incidents:", error);
+  }
+};
 
   const handleSelect = (activity) => {
     const newValue = selectedActivity === activity ? "" : activity;
     setSelectedActivity(newValue);
     if (newValue) {
       sessionStorage.setItem("activity", newValue);
-      setSelectedRoles([]);
     } else {
       sessionStorage.removeItem("activity");
     }
@@ -79,7 +141,7 @@ export default function OperationalPage() {
       name: username,
       operational: activitySelection,
       activity,
-      roles: selectedRoles,
+      eventNumber: selectedEvent,
       epochTimestamp: dateObj.getTime(),
      ...(activity === "Deployment" && {
       deploymentType,
@@ -88,10 +150,19 @@ export default function OperationalPage() {
     ...(activity === "BA-Checks" && { baType }),
     ...(activity === "Chainsaw-Checks" && { chainsawType }),
     ...(activity === "Other-operational" && { otherType })
-  };
+    };
+    const errors = validateOperationalAttendanceData(data)
+    if(errors.length !== 0) {
+      setSubmitStatus("Error");
+      setSubmitMessage(errors);
+      return
+    }
 
     try {
       console.log(data)
+      setIsSubmitting(true)
+      setSubmitMessage(null)
+      setSubmitStatus(null)
       const response = await fetch(`${apiurl}/api/attendance/submit`, {
         method: "POST",
         credentials: 'include',
@@ -105,27 +176,66 @@ export default function OperationalPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        alert(result.message || "An error occurred, please try again later.");
-        sessionStorage.clear();
-        navigate("/attendance/");
+        setSubmitStatus("Error")
+        setSubmitMessage(result.message || "An error has occured please try again later")
         return;
       }
-
-      const message = encodeURIComponent("Attendance logged successfully!");
+      
+      const message = encodeURIComponent(result.message || "Attendance logged successfully!");
       const type = encodeURIComponent("success");
+
+      sessionStorage.removeItem("activity");
+
       navigate(`/attendance?popupMessage=${message}&popupType=${type}`);
+    
     } catch (err) {
       console.error("Submission error:", err);
-      alert("An error has occurred, please try again later.");
-      sessionStorage.clear();
-      navigate("/attendance");
+      setSubmitStatus("error")
+      setSubmitMessage("An error has occured please try again later")
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  useEffect(() => {
+    fetchEvents();
+    fetchIncidents();
+  }, []);
+
   useTitle('Operational Attendance');
+
   return (
     <div className={styles.attendanceBg}>
       <div className="container py-4">
+        {submitMessage && (
+        <div
+          className={`alert ${
+            submitStatus === "success" ? "alert-success" : "alert-danger"
+          } alert-dismissible fade show mx-auto`}
+          role="alert"
+          style={{ maxWidth: "600px" }}
+        >
+          {Array.isArray(submitMessage) ? (
+            <ul className="mb-0">
+              {submitMessage.map((message, index) => (
+                <li key={index}>{message}</li>
+              ))}
+            </ul>
+          ) : (
+            submitMessage
+          )}
+
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => {
+              setSubmitMessage(null);
+              setSubmitStatus(null);
+            }}
+            aria-label="Close"
+          ></button>
+        </div>
+        )}
         <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm'>Select Operational Activity</h1>
         <div className="d-flex flex-wrap justify-content-center gap-2 my-4">
           {activities.map((activity) => (
@@ -139,7 +249,7 @@ export default function OperationalPage() {
             </button>
           ))}
         </div>
-          {selectedActivity === "Deployment" && (
+        {selectedActivity === "Deployment" && (
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
             style={{
               fontSize: "1rem",
@@ -170,8 +280,8 @@ export default function OperationalPage() {
             <option value="Out of area">Out of area</option>
           </select>
         </div>
-      )}
-      {selectedActivity === "BA-Checks" && (
+        )}
+        {selectedActivity === "BA-Checks" && (
           <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
           style={{
               fontSize: "1rem",
@@ -232,14 +342,43 @@ export default function OperationalPage() {
             </input>
           </div>
         )}
+        {selectedActivity !== "" && selectedActivity == 'Incident-Call' && (
+          <div className="d-flex dropdown justify-content-center">
+            <button
+              className="btn btn-secondary dropdown-toggle my-2"
+              type="button"
+              data-bs-toggle="dropdown"
+              data-bs-auto-close="outside"
+              aria-expanded="false"
+            >
+              {selectedEvent || "Select Incident for attendance"}
+            </button>
 
-        {selectedActivity && (
-         <CheckboxContainer
-          selectedRoles={selectedRoles}
-          setSelectedRoles={setSelectedRoles}
-         />
+            <ul className="dropdown-menu p-3">
+              {incidents.map((incident) => (
+                <li key={incident.eventNumber}>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="selectedIncident"
+                      id={`Incident-${incident.eventNumber}`}
+                      checked={selectedEvent === incident.eventNumber}
+                      onChange={() => setSelectedEvent(incident.eventNumber)}
+                    />
+
+                    <label
+                      className="form-check-label"
+                      htmlFor={`Incident-${incident.eventNumber}`}
+                    >
+                      {incident.description}
+                    </label>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
             style={{
               fontSize: "1rem",
@@ -259,8 +398,12 @@ export default function OperationalPage() {
           />
         </div>
         <div className="text-center">
-          <button onClick={handleSubmit} className="btn btn-danger">
-            Submit
+          <button 
+            onClick={handleSubmit} 
+            className="btn btn-danger"
+            disabled={isSubmitting}  
+          >
+            {isSubmitting ? "Submitting..." : "Submit"}
           </button>
         </div>
       </div>
