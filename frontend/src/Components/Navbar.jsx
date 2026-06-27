@@ -19,6 +19,7 @@ export default function Navbar() {
     "/admin/add-user": "/admin/users",
     "/admin/users": "/admin/dashboard",
     "/admin/reports": "/admin/dashboard",
+    "/admin/rolereports": "/admin/dashboard"
   };
 
   const pageTitleMap = {

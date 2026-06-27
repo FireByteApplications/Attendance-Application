@@ -15,6 +15,7 @@ import SelectionPage from './Pages/Attendance/Selection-page';
 import ProtectedRoute from "./hooks/protectedroutes";
 import CreateIncidents from "./Pages/Attendance/Create-Incidents";
 import Roles from "./Pages/Attendance/Roles";
+import RoleReports from "./Pages/Admin/rolereports"
 
 function App() {
   return (
@@ -53,6 +54,14 @@ function App() {
             element={
               <ProtectedRoute requireAdmin>
                 <Users />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="rolereports"
+            element={
+              <ProtectedRoute requireAdmin>
+                <RoleReports />
               </ProtectedRoute>
             }
           />

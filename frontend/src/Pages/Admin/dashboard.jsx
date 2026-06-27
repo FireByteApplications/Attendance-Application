@@ -22,8 +22,19 @@ const Dashboard = () => {
             <div className="card text-white bg-success mb-3">
               <div className="card-body">
                 <h5 className="card-title">Reports</h5>
-                <p className="card-text">View activity reports.</p>
+                <p className="card-text">Create Activity reports.</p>
                 <a href="/admin/reports" className="btn btn-light">
+                  Go
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="card text-white bg-info mb-3">
+              <div className="card-body">
+                <h5 className="card-title">Role Reporting</h5>
+                <p className="card-text">Report on event role attendance for users</p>
+                <a href="/admin/rolereports" className="btn btn-light">
                   Go
                 </a>
               </div>
