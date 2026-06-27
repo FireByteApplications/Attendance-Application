@@ -38,6 +38,7 @@ import { errorHandler } from './middleware/errorHandle'
 import { createEventService } from "./middleware/eventManagement";
 import { TTLCache } from "./middleware/simpleCache";
 import session from 'express-session';
+import { requireRoleAssignmentPin } from './middleware/roleAssignmentPin';
 
 dotenv.config();
 
@@ -138,6 +139,25 @@ client.connect().then(() => {
   const recordsCollection = db.collection('Records');
   const eventsCollection = db.collection('Events');
   const countersCollection = db.collection<{ _id: string; seq: number }>("Counters");
+  const allowedRoles = [
+    "Crew Leader",
+    "Pump operator",
+    "Driver",
+    "Hose Operator",
+    "BA Operator",
+    "Traffic management",
+    "Chainsaw Operator",
+    "First Aid",
+    "Navigation",
+    "Foam",
+    "Hydrants",
+    "Ladders",
+    "Working on roofs",
+    "TIC",
+    "Flood Rescue",
+    "Burnover",
+  ];
+  
   function invalidateUserCaches() {
     usernameSearchCache.clear();
     userNamesCache.clear();
@@ -175,12 +195,12 @@ client.connect().then(() => {
   reportUsersCache.set("reportUsers", users);
 
   return users;
-}
+  }
+
   const eventService = createEventService({
     eventsCollection,
     countersCollection
   });
-
 
   async function fetchOrThrow<T>(url: string, init: FetchRequestInit): Promise<T> {
     const res = await fetch(url, init);
@@ -196,27 +216,6 @@ client.connect().then(() => {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
 
-  const allowedRoles = [
-  "Crew Leader",
-  "Pump operator",
-  "Driver",
-  "Hose Operator",
-  "BA Operator",
-  "Traffic management",
-  "Chainsaw Operator",
-  "First Aid",
-  "Navigation",
-  "Foam",
-  "Hydrants",
-  "Ladders",
-  "Working on roofs",
-  "TIC",
-  "Flood Rescue",
-  "Burnover",
-];
-
-  const roleAssignmentUnlockMinutes = 30;
-
   function isValidEventNumber(eventNumber: string) {
     return /^\d{2}-\d{1,8}$/.test(eventNumber) || /^EVT-\d{5}$/.test(eventNumber);
   }
@@ -225,25 +224,7 @@ client.connect().then(() => {
     return /^\d{4}-\d{2}-\d{2}$/.test(date);
   }
 
-  const requireRoleAssignmentPin: RequestHandler = (req, res, next) => {
-    const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
-    const maxAge = roleAssignmentUnlockMinutes * 60 * 1000;
-
-    if (
-      req.session.canAssignRoles === true &&
-      Date.now() - unlockedAt <= maxAge
-    ) {
-      return next();
-    }
-
-    req.session.canAssignRoles = false;
-
-    return res.status(401).json({
-      ok: false,
-      message: "Role assignment PIN required.",
-    });
-  };
-
+  //Generate CSRF Tokens
   app.get('/csrf-token', csrfTokenLimiter, (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
@@ -1265,7 +1246,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   }
-  app.post('/api/attendance/createIncident', incidentCreateLimiter, sanitizeIncidentCreation, createIncident)
+  app.post('/api/attendance/createIncident', incidentCreateLimiter, requireRoleAssignmentPin, sanitizeIncidentCreation, createIncident)
   
   const listIncidents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listIncidents");
@@ -1354,20 +1335,21 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   app.get('/api/attendance/listEvents', eventListLimiter, listEvents)
 
   const roleAssignmentStatus: RequestHandler = (req, res) => {
-  const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
-  const maxAge = roleAssignmentUnlockMinutes * 60 * 1000;
+    const roleAssignmentUnlockMinutes = 30;
+    const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
+    const maxAge = roleAssignmentUnlockMinutes * 60 * 1000;
 
-  const unlocked =
-    req.session.canAssignRoles === true &&
-    Date.now() - unlockedAt <= maxAge;
+    const unlocked =
+      req.session.canAssignRoles === true &&
+      Date.now() - unlockedAt <= maxAge;
 
-  if (!unlocked) {
-    req.session.canAssignRoles = false;
-  }
+    if (!unlocked) {
+      req.session.canAssignRoles = false;
+    }
 
-  return res.status(200).json({
-    unlocked,
-  });
+    return res.status(200).json({
+      unlocked,
+    });
   };
   app.get( "/api/attendance/roleAssignment/status", roleReadLimiter, roleAssignmentStatus);
 
@@ -1418,7 +1400,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post( "/api/attendance/roleAssignment/unlock", rolePinLimiter, roleAssignmentUnlock );
+  app.post("/api/attendance/roleAssignment/unlock", rolePinLimiter, roleAssignmentUnlock);
 
   const roleAssignmentEventsByDate: RequestHandler = async (req, res) => {
     try {
@@ -1469,7 +1451,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.get( "/api/attendance/roleAssignment/events", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentEventsByDate );
+  app.get("/api/attendance/roleAssignment/events", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentEventsByDate);
 
   const roleAssignmentAttendees: RequestHandler = async (req, res) => {
     try {
@@ -1525,7 +1507,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.get( "/api/attendance/roleAssignment/attendees", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentAttendees );
+  app.get("/api/attendance/roleAssignment/attendees", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentAttendees);
 
   const updateEventRoles: RequestHandler = async (req, res) => {
     try {
@@ -1616,14 +1598,261 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
+  app.post("/api/attendance/roleAssignment/updateRoles", roleUpdateLimiter, requireRoleAssignmentPin, updateEventRoles);
 
-app.post( "/api/attendance/roleAssignment/updateRoles", roleUpdateLimiter, requireRoleAssignmentPin, updateEventRoles );
+  const roleReportRun: RequestHandler = async (req, res) => {
+    try {
+      const { startEpoch, endEpoch, names } = req.body;
+
+      if (
+        typeof startEpoch !== "number" ||
+        typeof endEpoch !== "number" ||
+        endEpoch < startEpoch
+      ) {
+        return res.status(400).json({
+          message: "Invalid date range.",
+        });
+      }
+
+      if (!Array.isArray(names) || names.length === 0) {
+        return res.status(400).json({
+          message: "At least one member must be selected.",
+        });
+      }
+
+      if (names.length > 300) {
+        return res.status(400).json({
+          message: "Too many members selected.",
+        });
+      }
+
+      const query: any = {
+        epochTimestamp: {
+          $gte: startEpoch,
+          $lte: endEpoch,
+        },
+        name: {
+          $in: names,
+        },
+        roles: {
+          $exists: true,
+          $ne: [],
+        },
+      };
+
+      const MAX_ROWS = 50000;
+
+      const records = await recordsCollection
+        .find(
+          query,
+          {
+            projection: {
+              _id: 0,
+              name: 1,
+              eventNumber: 1,
+              operational: 1,
+              activity: 1,
+              roles: 1,
+              epochTimestamp: 1,
+            },
+          }
+        )
+        .limit(MAX_ROWS + 1)
+        .toArray();
+
+      if (records.length > MAX_ROWS) {
+        return res.status(413).json({
+          message: "Result too large. Narrow date range or selected members.",
+        });
+      }
+
+      records.sort((a: any, b: any) => {
+        const timeA = Number(a.epochTimestamp ?? 0);
+        const timeB = Number(b.epochTimestamp ?? 0);
+
+        if (timeA !== timeB) return timeA - timeB;
+
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+      });
+
+      const dto = records.map((record: any) => ({
+        name: record.name,
+        eventNumber: record.eventNumber ?? "",
+        operational: record.operational ?? "",
+        activity: record.activity ?? "",
+        roles: Array.isArray(record.roles) ? record.roles : [],
+        epochTimestamp: record.epochTimestamp,
+        timestampLocal: moment
+          .tz(record.epochTimestamp, "Australia/Sydney")
+          .format("DD-MM-YYYY HH:mm"),
+      }));
+
+      return res.status(200).json({
+        count: dto.length,
+        records: dto,
+      });
+    } catch (error) {
+      console.error("Error running role report:", error);
+
+      return res.status(500).json({
+        message: "Failed to run role report.",
+      });
+    }
+  };
+  app.post("/api/reports/roles/run", reportRunLimiter, requireAdmin, roleReportRun);
+
+  const roleReportExport: RequestHandler = async (req, res) => {
+    try {
+      const {
+        startEpoch,
+        endEpoch,
+        names,
+        formattedStart,
+        formattedEnd,
+      } = req.body;
+
+      if (
+        typeof startEpoch !== "number" ||
+        typeof endEpoch !== "number" ||
+        endEpoch < startEpoch
+      ) {
+        return res.status(400).json({
+          message: "Invalid date range.",
+        });
+      }
+
+      if (!Array.isArray(names) || names.length === 0) {
+        return res.status(400).json({
+          message: "At least one member must be selected.",
+        });
+      }
+
+      if (names.length > 300) {
+        return res.status(400).json({
+          message: "Too many members selected.",
+        });
+      }
+
+      const query: any = {
+        epochTimestamp: {
+          $gte: startEpoch,
+          $lte: endEpoch,
+        },
+        name: {
+          $in: names,
+        },
+        roles: {
+          $exists: true,
+          $ne: [],
+        },
+      };
+
+      const MAX_ROWS = 50000;
+
+      const records = await recordsCollection
+        .find(
+          query,
+          {
+            projection: {
+              _id: 0,
+              name: 1,
+              eventNumber: 1,
+              operational: 1,
+              activity: 1,
+              roles: 1,
+              epochTimestamp: 1,
+            },
+          }
+        )
+        .limit(MAX_ROWS + 1)
+        .toArray();
+
+      if (records.length === 0) {
+        return res.status(404).json({
+          message: "No role records found to export.",
+        });
+      }
+
+      if (records.length > MAX_ROWS) {
+        return res.status(413).json({
+          message: "Result too large. Narrow date range or selected members.",
+        });
+      }
+
+      records.sort((a: any, b: any) => {
+        const timeA = Number(a.epochTimestamp ?? 0);
+        const timeB = Number(b.epochTimestamp ?? 0);
+
+        if (timeA !== timeB) return timeA - timeB;
+
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Role Report");
+
+      worksheet.addRow([
+        "Date/Time",
+        "Name",
+        "Event Number",
+        "Operational",
+        "Activity",
+        "Roles",
+      ]);
+
+      for (const record of records) {
+        worksheet.addRow([
+          moment
+            .tz(record.epochTimestamp, "Australia/Sydney")
+            .format("DD-MM-YYYY HH:mm"),
+          record.name ?? "",
+          record.eventNumber ?? "",
+          record.operational ?? "",
+          record.activity ?? "",
+          Array.isArray(record.roles) ? record.roles.join(", ") : "",
+        ]);
+      }
+
+      worksheet.columns.forEach((column) => {
+        column.width = 24;
+      });
+
+      const fallbackFormat = (epoch: number) =>
+        new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
+
+      const fileStart = formattedStart || fallbackFormat(startEpoch);
+      const fileEnd = formattedEnd || fallbackFormat(endEpoch);
+
+      const filename = `role-report-${fileStart}-${fileEnd}.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=${filename}`
+      );
+
+      await workbook.xlsx.write(res);
+      res.end();
+      return;
+    } catch (error) {
+      console.error("Error exporting role report:", error);
+
+      return res.status(500).json({
+        message: "Failed to export role report.",
+      });
+    }
+  };
+  app.post("/api/reports/roles/export", reportExportLimiter, requireAdmin, roleReportExport);
 
 app.use(errorHandler);
 
-  app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-  });
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
 }).catch((err) => {
   console.error('Failed to connect to database:', err);
 });
