@@ -2,7 +2,7 @@ name: Deploy React SPA to Azure Static Web Apps
 
 on:
   push:
-    branches: [ Develop ]
+    branches: [ Develop feature/Roles]
   workflow_dispatch:
 
 jobs:
