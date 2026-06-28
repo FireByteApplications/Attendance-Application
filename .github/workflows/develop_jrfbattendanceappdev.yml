@@ -5,7 +5,7 @@ name: Build and deploy API (staging) - JRFBAttendanceAppDev
 on:
   workflow_dispatch:
   push:
-    branches: [ Develop, Feature ]
+    branches: [ Develop, feature/Roles ]
 
 concurrency:
   group: api-staging-${{ github.ref }}
