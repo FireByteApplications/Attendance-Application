@@ -65,7 +65,7 @@ const corsOptions: CorsOptions = {
   credentials: true,
 };
 corsOptions.allowedHeaders = ['Content-Type','X-CSRF-Token']
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'staging') {
   corsOptions.origin = true
 } else if (process.env.NODE_ENV === 'production') {
   corsOptions.origin = [`${FRONTEND_URL}`];
@@ -93,8 +93,8 @@ app.use(
     
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging',
+      sameSite: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging' ? 'none' : 'lax',
       maxAge: 60 * 60 * 1000, //1 hour
     },
   }),
