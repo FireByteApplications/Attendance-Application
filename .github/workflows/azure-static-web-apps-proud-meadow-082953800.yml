@@ -2,7 +2,7 @@ name: Deploy React SPA to Azure Static Web Apps
 
 on:
   push:
-    branches: [ feature/Roles ]
+    branches: [ Develop ]
   workflow_dispatch:
 
 jobs:
@@ -33,10 +33,11 @@ jobs:
         # Pick API URL by branch name
         - name: Select API base URL
           run: |
-            if [ "${{ github.ref_name }}" != "main" ]; then
-              echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
+            if [ "${{ github.ref_name }}" = "main" ] 
+            then
+             echo "VITE_API_BASE_URL=${{ secrets.API_URL_PROD }}" >> $GITHUB_ENV  
             else
-              echo "VITE_API_BASE_URL=${{ secrets.API_URL_PROD }}" >> $GITHUB_ENV
+             echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
             fi
         - name: Replace API origin in CSP
           run: sed -i "s|__API_ORIGIN__|${{ env.VITE_API_BASE_URL }}|" frontend/staticwebapp.config.json
@@ -44,10 +45,8 @@ jobs:
           run: |
             if [ "${{ github.ref_name }}" = "main" ]; then
               echo "VITE_STAGE=prod" >> $GITHUB_ENV
-              echo "VITE_EXPECTED_HOST=app.yourdomain.com" >> $GITHUB_ENV
             else
               echo "VITE_STAGE=staging" >> $GITHUB_ENV
-              echo "VITE_EXPECTED_HOST=" >> $GITHUB_ENV
             fi
         - name: Build And Deploy
           id: builddeploy
