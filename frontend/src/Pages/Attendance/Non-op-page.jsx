@@ -11,13 +11,6 @@ const activities = [
   "Other-Non-operational"
 ];
 
-const roleActivities = [
-  "Training",
-  "Community-Engagement",
-  "Other-Non-operational"
-
-]
-
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function OperationalPage() {
@@ -28,7 +21,6 @@ export default function OperationalPage() {
   const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
-  const [selectedRoles, setSelectedRoles] = useState([])
   const navigate = useNavigate();
 
   const handleSelect = (activity) => {
@@ -61,7 +53,6 @@ export default function OperationalPage() {
         name: username,
         operational: activitySelection,
         activity,
-        roles: selectedRoles,
         epochTimestamp: dateObj.getTime(),
       ...(activity === "Other-Non-operational" && { otherType })
         } 
@@ -122,12 +113,6 @@ export default function OperationalPage() {
                   onChange={(e) => setOtherType(e.target.value)}>
             </input>
           </div>
-        )}
-        {roleActivities.includes(selectedActivity)  && (
-         <CheckboxContainer
-          selectedRoles={selectedRoles}
-          setSelectedRoles={setSelectedRoles}
-         />
         )}
 
 
