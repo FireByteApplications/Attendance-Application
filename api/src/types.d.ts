@@ -72,4 +72,9 @@ type EventServiceCollections = {
   eventsCollection: Collection<Document>;
   countersCollection: Collection<CounterDocument>;
 };
+
+type XlsxCellValue = string | number | boolean | Date | null | undefined;
+
+type XlsxRow = XlsxCellValue[];
+
 }
