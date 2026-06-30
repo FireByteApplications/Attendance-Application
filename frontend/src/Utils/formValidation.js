@@ -184,7 +184,7 @@ export const validateIncidentCreationForm = (formdata) => {
     errors.push("Activ Incident id must be in format 26-12345678")
   }
   if (!validateDescription(formdata.IncidentDescription)) {
-    errors.push("Description can only contain letters and numbers")
+    errors.push("Description must not be empty")
   }
   return errors;
 }

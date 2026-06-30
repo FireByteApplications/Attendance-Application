@@ -478,6 +478,7 @@ export default function RoleAssignment() {
                   setPin(digitsOnly.slice(0, 4));
                 }}
                 autoComplete="off"
+                required
               />
             </div>
 

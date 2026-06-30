@@ -353,6 +353,7 @@ const fetchIncidents = async () => {
                             setSelectedEvent(incident.eventNumber);
                             setIncidentDropdownOpen(false);
                           }}
+                          required
                         />
 
                         <label

@@ -303,6 +303,7 @@ export default function CreateIncidentsPage() {
                     setPin(digitsOnly.slice(0, 4));
                   }}
                   autoComplete="off"
+                  required
                 />
               </div>
 
@@ -331,6 +332,7 @@ export default function CreateIncidentsPage() {
                   className="form-control"
                   value={incDate}
                   onChange={(e) => setIncDate(e.target.value)}
+                  required
                 />
               </div>
 
@@ -346,6 +348,7 @@ export default function CreateIncidentsPage() {
                   placeholder="Activ Incident ID"
                   value={activId}
                   onChange={(e) => setActivId(e.target.value)}
+                  required
                 />
               </div>
 
@@ -363,6 +366,7 @@ Example: AFA Kiama 01 July 26"
                   style={{ height: "100px", resize: "none" }}
                   value={incDesc}
                   onChange={(e) => setIncDesc(e.target.value)}
+                  required
                 />
               </div>
 
