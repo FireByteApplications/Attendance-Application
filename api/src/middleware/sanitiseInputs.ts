@@ -325,16 +325,16 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
 }
 export function sanitizeIncidentCreation(req: Request, res: Response, next: NextFunction) {
   const {
-    Date,
-    ActivID,
-    IncidentDescription
+    date,
+    activID,
+    incidentDescription
   } = req.body ?? {}; 
   
   
   const sanitized = {
-    Date: validator.trim(String(Date ?? "")),
-    ActivID: validator.trim(String(ActivID ?? "")),
-    IncidentDescription: validator.trim(String(IncidentDescription ?? ""))
+    Date: validator.trim(String(date ?? "")),
+    ActivID: validator.trim(String(activID ?? "")),
+    IncidentDescription: validator.trim(String(incidentDescription ?? ""))
   };
 
   const errors: string[] = [];
