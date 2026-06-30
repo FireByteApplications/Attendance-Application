@@ -36,9 +36,10 @@ export default function Navbar() {
     "/admin/add-user": "Add User",
     "/admin/users": "Manage Users",
     "/admin/reports": "Reports",
+    "/admin/rolereports": "Role Reports",
 
-    "/createincidents": "Create Incident",
-    "/roles": "Assign Roles"
+    "/manageincidents": "Incident Management",
+    "/roles": "Role Assignment"
   };
 
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
@@ -54,9 +55,17 @@ export default function Navbar() {
 
   const getTitle = () => {
     if (isProd === true){
-      return pageTitleMap[path] || "JRFB Attendance Application";
+      if (pageTitleMap[path] !== undefined){
+       return pageTitleMap[path] 
+      } else{
+        return "JRFB Attendance Application"
+      } ;
     } else {
-      return pageTitleMap[path] + " (Dev)" || "JRFB Attendance Application"
+        if(pageTitleMap[path] !== undefined){
+          return pageTitleMap[path] + " (Dev)"
+        } else{
+          return "JRFB Attendance Application" + " (Dev)"
+        }
     }
     
   };

@@ -2,15 +2,25 @@ import { Request, Response, NextFunction } from 'express';
 import moment from 'moment';
 import validator from 'validator';
 
-const allowedRoles = new Set([
-  "Crew Leader",
-  "Driver",
-  "Pump Operator",
-  "BA Operator",
-  "BACO",
-  "Hose Operator",
-  "Chainsaw Operator",
-]);
+const allowedRoles = new Set( [
+    "Crew Leader",
+    "Pump operator",
+    "Driver",
+    "Hose Operator",
+    "BA Operator",
+    "Traffic management",
+    "Chainsaw Operator",
+    "First Aid",
+    "Navigation",
+    "BACO",
+    "Foam",
+    "Hydrants",
+    "Ladders",
+    "Working on roofs",
+    "TIC",
+    "Flood Rescue",
+    "Burnover"
+    ]);
 
 const MAX_REPORT_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years
 
@@ -48,10 +58,6 @@ function sanitizeNamesArray(names: unknown) {
     .filter(Boolean);
 }
 
-function isValidMemberName(name: string) {
-  return /^[A-Za-z\s.'-]{1,100}$/.test(name);
-}
-
 function sanitizeRoleReportBase(
   req: Request,
   res: Response,
@@ -60,7 +66,8 @@ function sanitizeRoleReportBase(
 ) {
   const startEpoch = Number(req.body.startEpoch);
   const endEpoch = Number(req.body.endEpoch);
-  const names = sanitizeNamesArray(req.body.names);
+  const names = sanitizeNamesArray(req.body.names) ?? [];
+  const roles = sanitiseRoles(req.body.roles) ?? [];
 
   if (
     !Number.isFinite(startEpoch) ||
@@ -80,9 +87,9 @@ function sanitizeRoleReportBase(
     return;
   }
 
-  if (!names || names.length === 0) {
+  if (names.length === 0 && roles.length === 0) {
     res.status(400).json({
-      message: "At least one member must be selected.",
+      message: "At least one member or role must be selected.",
     });
     return;
   }
@@ -94,48 +101,10 @@ function sanitizeRoleReportBase(
     return;
   }
 
-  const invalidNames = names.filter((name) => !isValidMemberName(name));
-
-  if (invalidNames.length > 0) {
-    res.status(400).json({
-      message: `Invalid member names: ${invalidNames.join(", ")}`,
-    });
-    return;
-  }
-
   req.body.startEpoch = startEpoch;
   req.body.endEpoch = endEpoch;
   req.body.names = names;
-
-  if (requireFormattedDates) {
-    const formattedStart = validator.trim(String(req.body.formattedStart ?? ""));
-    const formattedEnd = validator.trim(String(req.body.formattedEnd ?? ""));
-
-    const formattedDateRegex = /^\d{8}$/;
-
-    if (
-      formattedStart &&
-      !formattedDateRegex.test(formattedStart)
-    ) {
-      res.status(400).json({
-        message: "Invalid formatted start date.",
-      });
-      return;
-    }
-
-    if (
-      formattedEnd &&
-      !formattedDateRegex.test(formattedEnd)
-    ) {
-      res.status(400).json({
-        message: "Invalid formatted end date.",
-      });
-      return;
-    }
-
-    req.body.formattedStart = formattedStart;
-    req.body.formattedEnd = formattedEnd;
-  }
+  req.body.roles = roles;
 
   next();
 }
@@ -603,14 +572,31 @@ export function sanitizeUpdateEventRolesBody(
     return;
   }
 
-  const sanitizedUpdates = updates.map((update) => ({
-    recordId: validator.trim(String(update?.recordId ?? "")),
-    roles: Array.isArray(update?.roles)
-      ? update.roles
-          .map((role: unknown) => validator.trim(String(role ?? "")))
-          .filter(Boolean)
-      : update?.roles,
-  }));
+  const sanitizedUpdates = [];
+
+  for (const update of updates) {
+    const recordId = validator.trim(String(update?.recordId ?? ""));
+    const roles = sanitiseRoles(update?.roles, { max: 20 });
+
+    if (!recordId) {
+      res.status(400).json({
+        message: "Invalid record ID.",
+      });
+      return;
+    }
+
+    if (roles === null) {
+      res.status(400).json({
+        message: "One or more selected roles are invalid.",
+      });
+      return;
+    }
+
+    sanitizedUpdates.push({
+      recordId,
+      roles,
+    });
+  }
 
   req.body.eventNumber = eventNumber;
   req.body.updates = sanitizedUpdates;

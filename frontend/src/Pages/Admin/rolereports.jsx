@@ -19,13 +19,36 @@ export default function RoleReports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
 
   const [reportRows, setReportRows] = useState([]);
   const [reportCount, setReportCount] = useState(0);
 
+  const [selectedRoles, setSelectedRoles] = useState([]) 
+
   const [isRunning, setIsRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  const roles = [
+    "Crew Leader",
+    "Pump operator",
+    "Driver",
+    "Hose Operator",
+    "BA Operator",
+    "BACO",
+    "Traffic management",
+    "Chainsaw Operator",
+    "First Aid",
+    "Navigation",
+    "Foam",
+    "Hydrants",
+   "Ladders",
+    "Working on roofs",
+    "TIC",
+    "Flood Rescue",
+    "Burnover"
+    ];
 
   useEffect(() => {
     if (csrfToken) {
@@ -81,7 +104,24 @@ export default function RoleReports() {
   const handleClearSelection = () => {
     setSelectedNames([]);
   };
+  
+  const handleRoleToggle = (role) => {
+    setSelectedRoles((current) => {
+      if (current.includes(role)) {
+        return current.filter((existingRole) => existingRole !== role)
+      }
+      
+      return [...current, role]
+    })
+  }
 
+  const handleSelectAllRoles = () => {
+    setSelectedRoles(roles.filter(Boolean));
+  };
+
+  const handleClearRolesSelection= () => {
+    setSelectedRoles([]);
+  }
   const getDateRangeEpochs = () => {
     const startEpoch = moment
       .tz(startDate, "YYYY-MM-DD", "Australia/Sydney")
@@ -116,8 +156,8 @@ export default function RoleReports() {
       return false;
     }
 
-    if (selectedNames.length === 0) {
-      showMessage("error", "Please select at least one member.");
+    if (selectedNames.length === 0 && selectedRoles.length === 0) {
+      showMessage("error", "Please select at least one member or one role.");
       return false;
     }
 
@@ -150,6 +190,7 @@ export default function RoleReports() {
           startEpoch,
           endEpoch,
           names: selectedNames,
+          roles: selectedRoles
         }),
       });
 
@@ -285,14 +326,14 @@ export default function RoleReports() {
               <button
                 type="button"
                 className="form-select text-start"
-                onClick={() => setDropdownOpen((open) => !open)}
+                onClick={() => setMemberDropdownOpen((open) => !open)}
               >
                 {selectedNames.length === 0
                   ? "Select members"
                   : `${selectedNames.length} member(s) selected`}
               </button>
 
-              {dropdownOpen && (
+              {memberDropdownOpen && (
                 <div
                   className="card position-absolute w-100 shadow-sm mt-1"
                   style={{
@@ -335,6 +376,68 @@ export default function RoleReports() {
                           htmlFor={`member-${user.id || user.name}`}
                         >
                           {user.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="col-md-4 position-relative">
+              <label className="form-label">Roles</label>
+
+              <button
+                type="button"
+                className="form-select text-start"
+                onClick={() => setRoleDropdownOpen((open) => !open)}
+              >
+                {selectedRoles.length === 0
+                  ? "Select roles"
+                  : `${selectedRoles.length} role(s) selected`}
+              </button>
+              {roleDropdownOpen && (
+                <div
+                  className="card position-absolute w-100 shadow-sm mt-1"
+                  style={{
+                    zIndex: 1000,
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                  }}
+                >
+                  <div className="card-body p-2">
+                    <div className="d-flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={handleSelectAllRoles}
+                      >
+                        Select all
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={handleClearRolesSelection}
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    {roles.map((role) => (
+                      <div className="form-check" key={role}>
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id={`role-${role}`}
+                          checked={selectedRoles.includes(role)}
+                          onChange={() => handleRoleToggle(role)}
+                        />
+
+                        <label
+                          className="form-check-label"
+                          htmlFor={`role-${role}`}
+                        >
+                          {role}
                         </label>
                       </div>
                     ))}

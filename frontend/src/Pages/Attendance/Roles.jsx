@@ -53,6 +53,13 @@ const skills = {
     "Other-operational",
     "Community-Engagement"
   ],
+  "BACO": [
+    "Incident-Call",
+    "Deployment",
+    "Strike-Team",
+    "Training",
+    "Other-operational"
+  ],
   "Traffic management": [
     "Incident-Call",
     "Hazard-Reduction",

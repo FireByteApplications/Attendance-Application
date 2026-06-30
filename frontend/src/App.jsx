@@ -13,7 +13,7 @@ import NonOpPage from './Pages/Attendance/Non-op-page';
 import OpPage from './Pages/Attendance/Op-page';
 import SelectionPage from './Pages/Attendance/Selection-page';
 import ProtectedRoute from "./hooks/protectedroutes";
-import CreateIncidents from "./Pages/Attendance/Create-Incidents";
+import ManageIncidents from "./Pages/Attendance/Manage-Incidents";
 import Roles from "./Pages/Attendance/Roles";
 import RoleReports from "./Pages/Admin/rolereports"
 
@@ -68,8 +68,8 @@ function App() {
          <Route path="postlogout" element={<Postlogout/>}/>
         </Route>
         <Route 
-          path="createincidents"
-          element={<CreateIncidents />}/>
+          path="manageincidents"
+          element={<ManageIncidents />}/>
         <Route 
           path="roles"
           element={<Roles />}/>

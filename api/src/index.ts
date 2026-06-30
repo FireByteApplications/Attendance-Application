@@ -42,7 +42,7 @@ const reportUsersCache = new TTLCache<any[]>(5 * 60_000);
 
 const corsOptions: CorsOptions = {
   origin: [],
-  methods: ['POST', 'GET', 'PATCH'],
+  methods: ['POST', 'GET', 'PATCH', 'DELETE'],
   credentials: true,
 };
 corsOptions.allowedHeaders = ['Content-Type','X-CSRF-Token']
@@ -120,25 +120,6 @@ client.connect().then(() => {
   const recordsCollection = db.collection('Records');
   const eventsCollection = db.collection('Events');
   const countersCollection = db.collection<{ _id: string; seq: number }>("Counters");
-  const allowedRoles = [
-    "Crew Leader",
-    "Pump operator",
-    "Driver",
-    "Hose Operator",
-    "BA Operator",
-    "Traffic management",
-    "Chainsaw Operator",
-    "First Aid",
-    "Navigation",
-    "Foam",
-    "Hydrants",
-    "Ladders",
-    "Working on roofs",
-    "TIC",
-    "Flood Rescue",
-    "Burnover",
-  ];
-
   const XLSX_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -429,7 +410,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/api/users/list', limit.adminReadLimiter, requireAdmin, getUsersList);
 
-
   const UserNames: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -453,7 +433,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/names', limit.adminReadLimiter, requireAdmin, UserNames)
-
 
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
@@ -1069,7 +1048,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   "Deployment",
   "Strike-Team",
   "Training",
-  "Community-Engagement"
+  "Community-Engagement",
+  "Other-Operational"
   ];
 
   function activityRequiresEvent(activity: string) {
@@ -1225,7 +1205,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
     try {
     const result = await eventsCollection.insertOne(record);
-    res.status(200).json({ message: 'Data submitted successfully', result });
+    res.status(200).json({ message: 'Incident created successfully', result });
     invalidateEventCaches();
     } 
     catch (error: any) {
@@ -1243,6 +1223,46 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   }
   app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin, sanitise.sanitizeIncidentCreation, createIncident)
   
+  const deleteIncident: RequestHandler = async (req, res) => {
+    const {
+      eventNumber
+    } = req.body
+    if (!req.body.eventNumber) {
+      res.status(400).json({message: "Bad request"})
+    }
+    try {
+      const aggregationPipeline = [
+        { $match: {eventNumber: {$eq: eventNumber} } },
+        { $count: "events_with_incidents"}
+      ]
+
+      const findEventsWithIncidents = await recordsCollection.aggregate(aggregationPipeline).toArray()
+      const count = findEventsWithIncidents[0]?.events_with_incidents ?? 0;
+      if (count > 0) {
+        res.status(409).json({message: "Unable to delete incident as there are attendances against it"})
+      } else {
+        const deleteQuery = {eventNumber : `${eventNumber}`}
+        const result = await eventsCollection.deleteOne(deleteQuery)
+
+        if (result.deletedCount === 1) {
+          res.status(200).json({message: "Incident " + eventNumber + " deleted successfully"})
+          invalidateEventCaches();
+        } else {
+          res.status(404).json({message: "Incident " + eventNumber + " not found unable to be deleted"})
+      }
+      }
+      } catch(error: any) {
+        console.error("Error deleting incident", error)
+        res.status(500).json({
+          message: "Error unable to delete incident please try again later"
+        })
+      }
+
+
+      
+  }
+  app.delete('/api/attendance/deleteIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberQuery, deleteIncident)
+
   const listIncidents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listIncidents");
 
@@ -1491,29 +1511,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       for (const update of updates) {
         const recordId = String(update.recordId ?? "").trim();
-        const roles = update.roles;
 
         if (!ObjectId.isValid(recordId)) {
           return res.status(400).json({
             message: "Invalid record ID.",
-          });
-        }
-
-        if (!Array.isArray(roles)) {
-          return res.status(400).json({
-            message: "Roles must be an array.",
-          });
-        }
-
-        const cleanRoles = [...new Set(roles)];
-
-        const invalidRoles = cleanRoles.filter(
-          (role) => !allowedRoles.includes(role)
-        );
-
-        if (invalidRoles.length > 0) {
-          return res.status(400).json({
-            message: `Invalid roles`,
           });
         }
 
@@ -1525,7 +1526,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             },
             update: {
               $set: {
-                roles: cleanRoles,
+                roles: update.roles,
                 rolesUpdatedAtEpoch: now,
               },
             },
@@ -1552,21 +1553,32 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   const roleReportRun: RequestHandler = async (req, res) => {
     try {
-      const { startEpoch, endEpoch, names } = req.body;
+      const { startEpoch, endEpoch, names, roles } = req.body;
 
       const query: any = {
         epochTimestamp: {
           $gte: startEpoch,
           $lte: endEpoch,
         },
-        name: {
-          $in: names,
-        },
         roles: {
           $exists: true,
           $ne: [],
         },
       };
+
+      if (Array.isArray(names) && names.length > 0) {
+        query.name = {
+          $in: names,
+        };
+      }
+
+      if (Array.isArray(roles) && roles.length > 0) {
+        query.roles = {
+          $exists: true,
+          $ne: [],
+          $in: roles,
+        };
+      }
 
       const MAX_ROWS = 50000;
 
@@ -1627,7 +1639,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-
   app.post("/api/reports/roles/run", limit.reportRunLimiter, requireAdmin, sanitise.sanitizeRoleReportRunInput, roleReportRun);
 
   const roleReportExport: RequestHandler = async (req, res) => {
@@ -1731,7 +1742,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-
   app.post("/api/reports/roles/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeRoleReportExportInput, roleReportExport);
 
 app.use(errorHandler);
