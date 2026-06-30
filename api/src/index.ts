@@ -3,7 +3,7 @@ import cors, { CorsOptions } from 'cors';
 import { MongoClient, ObjectId, AnyBulkWriteOperation, Document } from 'mongodb';
 import dotenv from 'dotenv';
 import fetch, { RequestInit as FetchRequestInit } from 'node-fetch';
-import ExcelJS from 'exceljs';
+import writeExcelFile from 'write-excel-file/node'
 import moment from 'moment-timezone';
 import crypto from 'crypto';
 import { URL, URLSearchParams } from 'url';
@@ -157,6 +157,55 @@ client.connect().then(() => {
     "Flood Rescue",
     "Burnover",
   ];
+
+  const XLSX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function isEmptyXlsxCellValue(value: XlsxCellValue): boolean {
+  if (value == null) return true;
+  if (typeof value === "string") return value.trim() === "";
+  return false;
+}
+
+function removeEmptyColumns(
+  rows: XlsxRow[],
+  headerRowIndex = 0,
+  firstRemovableColumnIndex = 1
+): XlsxRow[] {
+  const maxColumnCount = Math.max(...rows.map((row) => row.length));
+
+  for (
+    let columnIndex = maxColumnCount - 1;
+    columnIndex >= firstRemovableColumnIndex;
+    columnIndex--
+  ) {
+    const hasData = rows
+      .slice(headerRowIndex + 1)
+      .some((row) => !isEmptyXlsxCellValue(row[columnIndex]));
+
+    if (!hasData) {
+      for (const row of rows) {
+        row.splice(columnIndex, 1);
+      }
+    }
+  }
+
+  return rows;
+}
+
+async function sendXlsxResponse(
+  res: Response,
+  filename: string,
+  rows: XlsxRow[]
+): Promise<void> {
+  const buffer = await writeExcelFile(rows).toBuffer();
+
+  res.setHeader("Content-Type", XLSX_CONTENT_TYPE);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", String(buffer.length));
+
+  res.status(200).send(buffer);
+}
   
   function invalidateUserCaches() {
     usernameSearchCache.clear();
@@ -718,47 +767,21 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
 
   const reportExport: RequestHandler = async (req, res) => {
-  const authedReq = req as AuthedRequest;
-  authedReq.user = authedReq.session.user;
-  function isEmptyCellValue(v: unknown): boolean{
-    if (v == null) return true;
-    if (typeof v === "string") return v.trim() === ""
-    if (typeof v === "object"){
-      const obj = v as any;
-      if (obj.rechText) return obj.richText.length === 0;
-      if (obj.text) return String(obj.text).trim() === "";
-      if (obj.formula) return false; 
-      if (obj.result != null) return false;
-    }
-    return false
-  }
-  function deleteColumnIfEmpty(
-    worksheet: ExcelJS.Worksheet,
-    colNumber: number,
-    headerRowNumber = 1
-  ) {
-    let hasData = false;
+    const authedReq = req as AuthedRequest;
+    authedReq.user = authedReq.session.user;
 
-    worksheet.eachRow({includeEmpty: true}, (row, rowNumber) => {
-      if (rowNumber <= headerRowNumber) return;
-
-      const cellValue = row.getCell(colNumber).value;
-      if(!isEmptyCellValue(cellValue)) hasData = true;
-    });
-    if (!hasData){
-      worksheet.spliceColumns(colNumber, 1);
+    function getActivityDetails(record: any) {
+      return {
+        baType: record.details?.baType ?? record.baType,
+        chainsawType: record.details?.chainsawType ?? record.chainsawType,
+        deploymentType: record.details?.deploymentType ?? record.deploymentType,
+        deploymentLocation:
+          record.details?.deploymentLocation ?? record.deploymentLocation,
+        otherType: record.details?.otherType ?? record.otherType,
+      };
     }
-  }
-  function getActivityDetails(record: any) {
-    return {
-      baType: record.details?.baType ?? record.baType,
-      chainsawType: record.details?.chainsawType ?? record.chainsawType,
-      deploymentType: record.details?.deploymentType ?? record.deploymentType,
-      deploymentLocation: record.details?.deploymentLocation ?? record.deploymentLocation,
-      otherType: record.details?.otherType ?? record.otherType,
-    };
-  }
-  const {
+
+    const {
       startEpoch,
       endEpoch,
       name,
@@ -767,193 +790,227 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       includeZeroAttendance,
       detailed,
       formattedStart,
-      formattedEnd
+      formattedEnd,
     } = req.body;
 
     try {
-        const query: any = {
-          epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
-        };
+      const query: any = {
+        epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
+      };
 
-        if (name) query.name = name;
-        if (activity) query.activity = activity;
-        if (operational) query.operational = operational;
-        const MAX_ROWS = 50000;
-        const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
-        const records = await recordsCursor.toArray();
-        if (records.length > MAX_ROWS) {
-          res
-          .status(413)
-          .json({ error: 'Result too large. Narrow date range or filters.' });
-          return;
-        }
-        const userDataMap = new Map<string, any>();
-        const userNoAttendanceDataMap = new Map<string, any>();
-        const usersWithRecords = new Set<string>();
-        
-        const allUsers = await getCachedReportUsers();
+      if (name) query.name = name;
+      if (activity) query.activity = activity;
+      if (operational) query.operational = operational;
 
-        const usersByName = new Map(
-          allUsers.map((user: any) => [user.name, user])
-        );
+      const MAX_ROWS = 50000;
 
-        for (const record of records) {
-          const userName = record.name;
-          usersWithRecords.add(userName);
-          if(detailed === false){
-            if (!userDataMap.has(userName)) {
+      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
+      const records = await recordsCursor.toArray();
+
+      if (records.length > MAX_ROWS) {
+        res.status(413).json({
+          error: "Result too large. Narrow date range or filters.",
+        });
+        return;
+      }
+
+      const userDataMap = new Map<string, any>();
+      const userNoAttendanceDataMap = new Map<string, any>();
+      const usersWithRecords = new Set<string>();
+
+      const allUsers = await getCachedReportUsers();
+
+      const usersByName = new Map(
+        allUsers.map((user: any) => [user.name, user])
+      );
+
+      for (const record of records) {
+        const userName = record.name;
+        usersWithRecords.add(userName);
+
+        if (detailed === false) {
+          if (!userDataMap.has(userName)) {
             const userDetails = usersByName.get(userName);
+
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
-                memberNumber: userDetails.id || '',
+                memberNumber: userDetails.id || "",
                 status: userDetails.member_status,
-                Membership_Classification: userDetails.membership_classification,
+                Membership_Classification:
+                  userDetails.membership_classification,
                 membership_type: userDetails.membership_type,
                 operationalActivities: 0,
                 nonOperationalActivities: 0,
-                records: []
-                });
-              }
-            }
-            const details = getActivityDetails(record);
-
-            const userStats = userDataMap.get(userName);
-            if (userStats) {
-              userStats.records.push({
-                timestampLocal: moment
-                  .tz(record.epochTimestamp, "Australia/Sydney")
-                  .format("DD-MM-YYYY HH:mm"),
-
-                operational: record.operational,
-                activity: record.activity,
-
-                ...(details.baType && { baType: details.baType }),
-                ...(details.chainsawType && { chainsawType: details.chainsawType }),
-                ...(details.deploymentType && { deploymentType: details.deploymentType }),
-                ...(details.otherType && { otherType: details.otherType }),
-                ...(details.deploymentLocation && {
-                  deploymentLocation: details.deploymentLocation,
-                }),
-
+                records: [],
               });
-
-              if (record.operational === "Operational") userStats.operationalActivities++;
-              else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
             }
           }
-          else if(detailed === true){
-            if (!userDataMap.has(userName)) {
-            const userDetails = await usersCollection.findOne({ name: userName });
+
+          const details = getActivityDetails(record);
+          const userStats = userDataMap.get(userName);
+
+          if (userStats) {
+            userStats.records.push({
+              timestampLocal: moment
+                .tz(record.epochTimestamp, "Australia/Sydney")
+                .format("DD-MM-YYYY HH:mm"),
+
+              operational: record.operational,
+              activity: record.activity,
+
+              ...(details.baType && { baType: details.baType }),
+              ...(details.chainsawType && {
+                chainsawType: details.chainsawType,
+              }),
+              ...(details.deploymentType && {
+                deploymentType: details.deploymentType,
+              }),
+              ...(details.otherType && { otherType: details.otherType }),
+              ...(details.deploymentLocation && {
+                deploymentLocation: details.deploymentLocation,
+              }),
+            });
+
+            if (record.operational === "Operational") {
+              userStats.operationalActivities++;
+            } else if (record.operational === "Non-Operational") {
+              userStats.nonOperationalActivities++;
+            }
+          }
+        } else if (detailed === true) {
+          if (!userDataMap.has(userName)) {
+            const userDetails = usersByName.get(userName);
+
             if (userDetails) {
               userDataMap.set(userName, {
                 name: userName,
-                memberNumber: userDetails.id || '',
+                memberNumber: userDetails.id || "",
                 status: userDetails.member_status,
-                Membership_Classification: userDetails.membership_classification,
+                Membership_Classification:
+                  userDetails.membership_classification,
                 membership_type: userDetails.membership_type,
-                records: []
-                });
-              }
-              
-              }
-            const details = getActivityDetails(record);
-            const userStats = userDataMap.get(userName);
-            if (userStats) {
-              userStats.records.push({
-                timestampLocal: moment
-                  .tz(record.epochTimestamp, "Australia/Sydney")
-                  .format("DD-MM-YYYY HH:mm"),
-
-                operational: record.operational,
-                activity: record.activity,
-
-                ...(details.baType && { baType: details.baType }),
-                ...(details.chainsawType && { chainsawType: details.chainsawType }),
-                ...(details.deploymentType && { deploymentType: details.deploymentType }),
-                ...(details.otherType && { otherType: details.otherType }),
-                ...(details.deploymentLocation && {
-                  deploymentLocation: details.deploymentLocation,
-                }),
-
+                records: [],
               });
             }
-            }
-        }
-        if (detailed === false && includeZeroAttendance) {
-          const allUsers = await usersCollection.find({}).toArray();
-          for (const user of allUsers) {
-            if (!usersWithRecords.has(user.name)) {
-              userNoAttendanceDataMap.set(user.name, {
-                name: user.name,
-                memberNumber: user.id || '',
-                status: user.member_status,
-                Membership_Classification: user.membership_classification,
-                membership_type: user.membership_type,
-                operationalActivities: 0,
-                nonOperationalActivities: 0,
-                records: []
-                });
-              }
-            } 
           }
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Report');
-        if(detailed === false){
-          const header = [
-          'Name',
-          'Member Number',
-          'Status',
-          'Membership Classification',
-          'Membership Type',
-          'Operational Activities',
-          'Non-Operational Activities',
-        ];
-        worksheet.addRow(header);
-        } else if(detailed === true){
-          const header = [
-          'Timestamp',
-          'Name',
-          'Member Number',
-          'Status',
-          'Membership Classification',
-          'Membership Type',
-          'Operational',
-          'Activity',
-          'Activity Detail',
-          'Activity Location',
-        ];
-        worksheet.addRow(header);
+
+          const details = getActivityDetails(record);
+          const userStats = userDataMap.get(userName);
+
+          if (userStats) {
+            userStats.records.push({
+              timestampLocal: moment
+                .tz(record.epochTimestamp, "Australia/Sydney")
+                .format("DD-MM-YYYY HH:mm"),
+
+              operational: record.operational,
+              activity: record.activity,
+
+              ...(details.baType && { baType: details.baType }),
+              ...(details.chainsawType && {
+                chainsawType: details.chainsawType,
+              }),
+              ...(details.deploymentType && {
+                deploymentType: details.deploymentType,
+              }),
+              ...(details.otherType && { otherType: details.otherType }),
+              ...(details.deploymentLocation && {
+                deploymentLocation: details.deploymentLocation,
+              }),
+            });
+          }
         }
+      }
+
+      if (detailed === false && includeZeroAttendance) {
+        const allUsers = await usersCollection.find({}).toArray();
+
+        for (const user of allUsers) {
+          if (!usersWithRecords.has(user.name)) {
+            userNoAttendanceDataMap.set(user.name, {
+              name: user.name,
+              memberNumber: user.id || "",
+              status: user.member_status,
+              Membership_Classification: user.membership_classification,
+              membership_type: user.membership_type,
+              operationalActivities: 0,
+              nonOperationalActivities: 0,
+              records: [],
+            });
+          }
+        }
+      }
+
+      const rows: XlsxRow[] = [];
+
+      if (detailed === false) {
+        rows.push([
+          "Name",
+          "Member Number",
+          "Status",
+          "Membership Classification",
+          "Membership Type",
+          "Operational Activities",
+          "Non-Operational Activities",
+        ]);
 
         userDataMap.forEach((user: any) => {
-          let row:(string | number)[] = []
-          if(detailed === false){
-            row = [
-              user.name,
-              user.memberNumber,
-              user.status,
-              user.Membership_Classification,
-              user.membership_type,
-              user.operationalActivities,
-              user.nonOperationalActivities 
-            ]
-            worksheet.addRow(row)
-          } else if(detailed === true) {
-           for (const record of user.records) {
+          rows.push([
+            user.name,
+            user.memberNumber,
+            user.status,
+            user.Membership_Classification,
+            user.membership_type,
+            user.operationalActivities,
+            user.nonOperationalActivities,
+          ]);
+        });
+
+        userNoAttendanceDataMap.forEach((user: any) => {
+          rows.push([
+            user.name,
+            user.memberNumber,
+            user.status,
+            user.Membership_Classification,
+            user.membership_type,
+            "Zero Attendance",
+          ]);
+        });
+      } else if (detailed === true) {
+        rows.push([
+          "Timestamp",
+          "Name",
+          "Member Number",
+          "Status",
+          "Membership Classification",
+          "Membership Type",
+          "Operational",
+          "Activity",
+          "Activity Detail",
+          "Activity Location",
+        ]);
+
+        userDataMap.forEach((user: any) => {
+          for (const record of user.records) {
             let activityType = "";
             let activityLocation = "";
+
             if (record.activity === "BA-Checks") {
               activityType = record.baType || "";
             } else if (record.activity === "Chainsaw-Checks") {
               activityType = record.chainsawType || "";
-            } else if (record.activity === "Other-Non-operational" || record.activity === "Other-operational") {
+            } else if (
+              record.activity === "Other-Non-operational" ||
+              record.activity === "Other-operational"
+            ) {
               activityType = record.otherType || "";
             } else if (record.activity === "Deployment") {
               activityType = record.deploymentType || "";
               activityLocation = record.deploymentLocation || "";
             }
-            const row = [
+
+            rows.push([
               record.timestampLocal,
               user.name,
               user.memberNumber,
@@ -964,43 +1021,37 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               record.activity,
               activityType,
               activityLocation,
-            ];
-            worksheet.addRow(row);
-            }
+            ]);
           }
         });
-        userNoAttendanceDataMap.forEach((user: any) =>{
-          let row:(string | number)[] = []
-          row = [
-            user.name,
-            user.memberNumber,
-            user.status,
-            user.Membership_Classification,
-            user.membership_type,
-            "Zero Attendance"
-          ]
-          worksheet.addRow(row)
-        })
-        for(let i = 11; i > 1; i--){
-          deleteColumnIfEmpty(worksheet, i)
-        }
-      const fallbackFormat = (epoch: number) => new Date(epoch).toISOString().slice(0, 10).replace(/-/g, '');
+      } else {
+        res.status(400).json({
+          error: "Invalid report detail option.",
+        });
+        return;
+      }
+
+      removeEmptyColumns(rows, 0, 1);
+
+      const fallbackFormat = (epoch: number) =>
+        new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
+
       const fileStart = formattedStart || fallbackFormat(startEpoch);
       const fileEnd = formattedEnd || fallbackFormat(endEpoch);
       const filename = `member-attendance-report-${fileStart}-${fileEnd}.xlsx`;
 
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-      await workbook.xlsx.write(res);
-      res.end();
+      await sendXlsxResponse(res, filename, rows);
       return;
     } catch (error) {
       console.error("Error generating Excel report", error);
-      res.status(500).json({ error: "Failed to export report" });
+
+      res.status(500).json({
+        error: "Failed to export report",
+      });
       return;
     }
-  }
-  app.post('/api/reports/export', reportExportLimiter, sanitizeReportingExportInput, requireAdmin, reportExport)
+  };
+  app.post("/api/reports/export", reportExportLimiter, sanitizeReportingExportInput, requireAdmin, reportExport);
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
@@ -1750,20 +1801,17 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const MAX_ROWS = 50000;
 
       const records = await recordsCollection
-        .find(
-          query,
-          {
-            projection: {
-              _id: 0,
-              name: 1,
-              eventNumber: 1,
-              operational: 1,
-              activity: 1,
-              roles: 1,
-              epochTimestamp: 1,
-            },
-          }
-        )
+        .find(query, {
+          projection: {
+            _id: 0,
+            name: 1,
+            eventNumber: 1,
+            operational: 1,
+            activity: 1,
+            roles: 1,
+            epochTimestamp: 1,
+          },
+        })
         .limit(MAX_ROWS + 1)
         .toArray();
 
@@ -1788,20 +1836,16 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return String(a.name ?? "").localeCompare(String(b.name ?? ""));
       });
 
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Role Report");
-
-      worksheet.addRow([
-        "Date/Time",
-        "Name",
-        "Event Number",
-        "Operational",
-        "Activity",
-        "Roles",
-      ]);
-
-      for (const record of records) {
-        worksheet.addRow([
+      const rows: XlsxRow[] = [
+        [
+          "Date/Time",
+          "Name",
+          "Event Number",
+          "Operational",
+          "Activity",
+          "Roles",
+        ],
+        ...records.map((record: any) => [
           moment
             .tz(record.epochTimestamp, "Australia/Sydney")
             .format("DD-MM-YYYY HH:mm"),
@@ -1810,12 +1854,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           record.operational ?? "",
           record.activity ?? "",
           Array.isArray(record.roles) ? record.roles.join(", ") : "",
-        ]);
-      }
-
-      worksheet.columns.forEach((column) => {
-        column.width = 24;
-      });
+        ]),
+      ];
 
       const fallbackFormat = (epoch: number) =>
         new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
@@ -1825,18 +1865,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       const filename = `role-report-${fileStart}-${fileEnd}.xlsx`;
 
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=${filename}`
-      );
-
-      await workbook.xlsx.write(res);
-      res.end();
+      await sendXlsxResponse(res, filename, rows);
       return;
     } catch (error) {
       console.error("Error exporting role report:", error);
