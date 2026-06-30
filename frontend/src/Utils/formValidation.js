@@ -7,7 +7,7 @@ export const validateSelections = (value) =>
   /^[a-zA-Z\s-()]+$/.test(value);
 
 export const validateFireZoneNumber = (value) => 
-  /^[1-9]+$/.test(value);
+  /^\d{1,9}?$/.test(value);
 
 export const validateOtherType = (value) => 
   /^[a-zA-Z\s.,']+$/.test(value);

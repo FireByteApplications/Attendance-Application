@@ -12,6 +12,10 @@ const allowedRoles = new Set([
   "Chainsaw Operator",
 ]);
 
+const MAX_REPORT_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years
+
+const MAX_SELECTED_MEMBERS = 300;
+
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
@@ -32,6 +36,130 @@ function sanitiseRoles(value: unknown, opts?: { max?: number }): string[] | null
   }
 
   return Array.from(new Set(sanitised));
+}
+
+function sanitizeNamesArray(names: unknown) {
+  if (!Array.isArray(names)) {
+    return null;
+  }
+
+  return names
+    .map((name) => validator.trim(String(name ?? "")))
+    .filter(Boolean);
+}
+
+function isValidMemberName(name: string) {
+  return /^[A-Za-z\s.'-]{1,100}$/.test(name);
+}
+
+function sanitizeRoleReportBase(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  requireFormattedDates = false
+) {
+  const startEpoch = Number(req.body.startEpoch);
+  const endEpoch = Number(req.body.endEpoch);
+  const names = sanitizeNamesArray(req.body.names);
+
+  if (
+    !Number.isFinite(startEpoch) ||
+    !Number.isFinite(endEpoch) ||
+    endEpoch < startEpoch
+  ) {
+    res.status(400).json({
+      message: "Invalid date range.",
+    });
+    return;
+  }
+
+  if (endEpoch - startEpoch > MAX_REPORT_SPAN) {
+    res.status(400).json({
+      message: "Date range too large. Maximum range is 3 years.",
+    });
+    return;
+  }
+
+  if (!names || names.length === 0) {
+    res.status(400).json({
+      message: "At least one member must be selected.",
+    });
+    return;
+  }
+
+  if (names.length > MAX_SELECTED_MEMBERS) {
+    res.status(400).json({
+      message: "Too many members selected.",
+    });
+    return;
+  }
+
+  const invalidNames = names.filter((name) => !isValidMemberName(name));
+
+  if (invalidNames.length > 0) {
+    res.status(400).json({
+      message: `Invalid member names: ${invalidNames.join(", ")}`,
+    });
+    return;
+  }
+
+  req.body.startEpoch = startEpoch;
+  req.body.endEpoch = endEpoch;
+  req.body.names = names;
+
+  if (requireFormattedDates) {
+    const formattedStart = validator.trim(String(req.body.formattedStart ?? ""));
+    const formattedEnd = validator.trim(String(req.body.formattedEnd ?? ""));
+
+    const formattedDateRegex = /^\d{8}$/;
+
+    if (
+      formattedStart &&
+      !formattedDateRegex.test(formattedStart)
+    ) {
+      res.status(400).json({
+        message: "Invalid formatted start date.",
+      });
+      return;
+    }
+
+    if (
+      formattedEnd &&
+      !formattedDateRegex.test(formattedEnd)
+    ) {
+      res.status(400).json({
+        message: "Invalid formatted end date.",
+      });
+      return;
+    }
+
+    req.body.formattedStart = formattedStart;
+    req.body.formattedEnd = formattedEnd;
+  }
+
+  next();
+}
+
+function parseBoolean(v: unknown): boolean | undefined {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(s)) return true;
+    if (['false', '0', 'no', 'off'].includes(s)) return false;
+  }
+  if (typeof v === 'number') {
+    if (v === 1) return true;
+    if (v === 0) return false;
+  }
+  return undefined; // invalid / not a boolean
+}
+
+function isValidEventNumber(eventNumber: string) {
+  return /^\d{2}-\d{1,8}$/.test(eventNumber) || /^EVT-\d{5}$/.test(eventNumber);
+}
+
+function isValidEventDate(date: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
 export function sanitizeAttendanceInput(req: Request, res: Response, next: NextFunction) {
@@ -92,6 +220,7 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
 
   next();
 }
+
 export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunction) {
   const {oldname, name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType} = req.body
   const sanitized = {
@@ -126,6 +255,7 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
 
   next();
 }
+
 export function sanitizeUser(req: Request, res: Response, next: NextFunction) {
   const { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot, middleName } = req.body;
   const sanitized = {
@@ -160,6 +290,7 @@ export function sanitizeUser(req: Request, res: Response, next: NextFunction) {
 
   next();
 }
+
 export function sanitizeReportingRunInput(req: Request, res: Response, next: NextFunction) {
   const {
     startEpoch,
@@ -224,19 +355,7 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
 
   return next();
 }
-function parseBoolean(v: unknown): boolean | undefined {
-  if (typeof v === 'boolean') return v;
-  if (typeof v === 'string') {
-    const s = v.trim().toLowerCase();
-    if (['true', '1', 'yes', 'on'].includes(s)) return true;
-    if (['false', '0', 'no', 'off'].includes(s)) return false;
-  }
-  if (typeof v === 'number') {
-    if (v === 1) return true;
-    if (v === 0) return false;
-  }
-  return undefined; // invalid / not a boolean
-}
+
 export function sanitizeReportingExportInput(req: Request, res: Response, next: NextFunction) {
   const {
     startEpoch,
@@ -323,6 +442,7 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
   };
   return next();
 }
+
 export function sanitizeIncidentCreation(req: Request, res: Response, next: NextFunction) {
   const {
     date,
@@ -380,4 +500,215 @@ export function sanitizeIncidentCreation(req: Request, res: Response, next: Next
   };
 
   return next();
+}
+
+export function sanitizeFireZoneNumber(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const { numbers } = req.body;
+
+  if (!Array.isArray(numbers) || numbers.length === 0) {
+    res.status(400).json({ message: "Missing fire zone numbers" });
+    return;
+  }
+
+  const sanitizedNumbers = numbers.map((number) =>
+    validator.trim(String(number ?? ""))
+  );
+
+  const fireZoneRegex = /^\d{1,9}$/;
+
+  const invalidNumbers = sanitizedNumbers.filter(
+    (number) => !fireZoneRegex.test(number)
+  );
+
+  if (invalidNumbers.length > 0) {
+    res.status(400).json({
+      message: `Invalid fire zone numbers: ${invalidNumbers.join(", ")}`,
+    });
+    return;
+  }
+
+  req.body.numbers = sanitizedNumbers;
+
+  next();
+}
+
+export function sanitizeEventDateQuery(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const date = validator.trim(String(req.query.date ?? ""));
+
+  if (!isValidEventDate(date)) {
+    res.status(400).json({
+      message: "Invalid event date. Use YYYY-MM-DD.",
+    });
+    return;
+  }
+
+  req.query.date = date;
+
+  next();
+}
+
+export function sanitizeEventNumberQuery(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const eventNumber = validator.trim(String(req.query.eventNumber ?? ""));
+
+  if (!isValidEventNumber(eventNumber)) {
+    res.status(400).json({
+      message: "Invalid event number.",
+    });
+    return;
+  }
+
+  req.query.eventNumber = eventNumber;
+
+  next();
+}
+
+export function sanitizeUpdateEventRolesBody(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const eventNumber = validator.trim(String(req.body.eventNumber ?? ""));
+  const updates = req.body.updates;
+
+  if (!isValidEventNumber(eventNumber)) {
+    res.status(400).json({
+      message: "Invalid event number.",
+    });
+    return;
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    res.status(400).json({
+      message: "No role updates provided.",
+    });
+    return;
+  }
+
+  if (updates.length > 200) {
+    res.status(400).json({
+      message: "Too many role updates.",
+    });
+    return;
+  }
+
+  const sanitizedUpdates = updates.map((update) => ({
+    recordId: validator.trim(String(update?.recordId ?? "")),
+    roles: Array.isArray(update?.roles)
+      ? update.roles
+          .map((role: unknown) => validator.trim(String(role ?? "")))
+          .filter(Boolean)
+      : update?.roles,
+  }));
+
+  req.body.eventNumber = eventNumber;
+  req.body.updates = sanitizedUpdates;
+
+  next();
+}
+
+export function sanitizeRoleReportRunInput(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  sanitizeRoleReportBase(req, res, next, false);
+}
+
+export function sanitizeRoleReportExportInput(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  sanitizeRoleReportBase(req, res, next, true);
+}
+
+export function sanitizeCheckUsernameInput(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const username = validator.trim(String(req.body.username ?? ""));
+
+  const usernameRegex = /^[A-Za-z]+(?:\.[A-Za-z]+)?(?:-[A-Za-z]+)?$/;
+
+  if (
+    username.length < 3 ||
+    username.length > 40 ||
+    !usernameRegex.test(username)
+  ) {
+    req.session.validUsername = undefined;
+
+    res.status(400).json({
+      ok: false,
+      message: "Invalid username",
+    });
+    return;
+  }
+
+  req.body.username = username;
+
+  next();
+}
+
+export function sanitizeUsernameListQuery(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const query = validator.trim(String(req.query.q ?? "")).toLowerCase();
+
+  if (query.length > 50) {
+    res.status(400).json({
+      message: "Search query too long.",
+    });
+    return;
+  }
+
+  const usernameSearchRegex = /^[a-z.-]*$/;
+
+  if (!usernameSearchRegex.test(query)) {
+    res.status(400).json({
+      message: "Invalid username search query.",
+    });
+    return;
+  }
+
+  req.query.q = query;
+
+  next();
+}
+
+export function sanitizeRoleAssignmentPinInput(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const pin = validator.trim(String(req.body.pin ?? ""));
+
+  if (!/^\d{4}$/.test(pin)) {
+    req.session.canAssignRoles = false;
+    req.session.roleAssignmentUnlockedAt = undefined;
+
+    res.status(400).json({
+      ok: false,
+      message: "Invalid PIN format.",
+    });
+    return;
+  }
+
+  req.body.pin = pin;
+
+  next();
 }

@@ -12,28 +12,9 @@ import { csrfMiddleware} from './middleware/csrfToken';
 import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
 import { promisify } from 'node:util';
-import {
-  csrfTokenLimiter,
-  authStatusLimiter,
-  authLimiter,
-  attendanceLimiter,
-  adminLimiter,
-  usernameCheckLimiter,
-  usernameSearchLimiter,
-  attendanceSubmitLimiter,
-  incidentCreateLimiter,
-  eventListLimiter,
-  adminReadLimiter,
-  adminUserMutationLimiter,
-  adminDeleteLimiter,
-  reportRunLimiter,
-  reportExportLimiter,
-  rolePinLimiter,
-  roleReadLimiter,
-  roleUpdateLimiter,
-} from "./middleware/rateLimit";
+import * as limit from "./middleware/rateLimit";
 import MongoStore from 'connect-mongo';
-import { sanitizeIncidentCreation, sanitizeReportingRunInput, sanitizeReportingExportInput,  sanitizeAttendanceInput, sanitizeUpdatedUser, sanitizeUser } from './middleware/sanitiseInputs'
+import * as sanitise from "./middleware/sanitiseInputs";
 import { errorHandler } from './middleware/errorHandle'
 import { createEventService } from "./middleware/eventManagement";
 import { TTLCache } from "./middleware/simpleCache";
@@ -61,7 +42,7 @@ const reportUsersCache = new TTLCache<any[]>(5 * 60_000);
 
 const corsOptions: CorsOptions = {
   origin: [],
-  methods: ['POST', 'GET'],
+  methods: ['POST', 'GET', 'PATCH'],
   credentials: true,
 };
 corsOptions.allowedHeaders = ['Content-Type','X-CSRF-Token']
@@ -105,9 +86,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(['/api/attendance'], attendanceLimiter)
+app.use(['/api/attendance'], limit.attendanceLimiter)
 
-app.use(['/api/users', '/api/reports'], adminLimiter)
+app.use(['/api/users', '/api/reports'], limit.adminLimiter)
 
 app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
 
@@ -265,16 +246,8 @@ async function sendXlsxResponse(
     return crypto.createHash('sha256').update(verifier).digest('base64url');
   }
 
-  function isValidEventNumber(eventNumber: string) {
-    return /^\d{2}-\d{1,8}$/.test(eventNumber) || /^EVT-\d{5}$/.test(eventNumber);
-  }
-
-  function isValidEventDate(date: string) {
-    return /^\d{4}-\d{2}-\d{2}$/.test(date);
-  }
-
   //Generate CSRF Tokens
-  app.get('/csrf-token', csrfTokenLimiter, (req, res) => {
+  app.get('/csrf-token', limit.csrfTokenLimiter, (req, res) => {
     res.json({ csrfToken: (req as any).csrfToken() });
   });
   // Generates OAuth2 login URL with PKCE challenge
@@ -306,8 +279,7 @@ async function sendXlsxResponse(
       return;
     }
   }
-  app.get('/auth/login', authLimiter, login)
-
+  app.get('/auth/login', limit.authLimiter, login)
   // Handles Microsoft redirect and token exchange
   const redirect: RequestHandler = async (req, res) =>{
 
@@ -380,7 +352,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   }
-  app.get('/auth/redirect', authLimiter, redirect)
+  app.get('/auth/redirect', limit.authLimiter, redirect)
 
   const AuthCheck: RequestHandler = (req, res) => {
     if (!req.session || !req.session.user) {
@@ -410,15 +382,15 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     user: req.session.user,
     isAdmin: !!req.session.user.isAdmin,
   });
-}
-  app.get('/auth/check', authStatusLimiter, AuthCheck)
+  }
+  app.get('/auth/check', limit.authStatusLimiter, AuthCheck)
 
   const sessionCheck: RequestHandler = (req, res) => {
       if (req.session?.user) return res.sendStatus(200);
     res.sendStatus(401);
 
   }
-  app.get('/auth/session', authStatusLimiter, sessionCheck)
+  app.get('/auth/session', limit.authStatusLimiter, sessionCheck)
 
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
@@ -431,7 +403,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.redirect(logoutUrl);
       });
   };
-  app.get('/auth/logout', authLimiter, LogOut)
+  app.get('/auth/logout', limit.authLimiter, LogOut)
 
 
   const getUsersList: RequestHandler = async (req, res) => {
@@ -455,7 +427,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "Failed to fetch users" });
     }
   };
-  app.get('/api/users/list', adminReadLimiter, requireAdmin, getUsersList);
+  app.get('/api/users/list', limit.adminReadLimiter, requireAdmin, getUsersList);
 
 
   const UserNames: RequestHandler = async (req, res) => {
@@ -480,7 +452,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ error: "Failed to fetch user names" });
     }
   };
-  app.get('/api/users/names', adminReadLimiter, requireAdmin, UserNames)
+  app.get('/api/users/names', limit.adminReadLimiter, requireAdmin, UserNames)
 
 
   const addUser: RequestHandler = async (req, res) => {
@@ -516,23 +488,13 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return
     }
   };
-  app.post('/api/users/addUser', adminUserMutationLimiter, sanitizeUser, requireAdmin, addUser)
+  app.post('/api/users/addUser', limit.adminUserMutationLimiter, sanitise.sanitizeUser, requireAdmin, addUser)
 
 
   const deleteUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
     const { numbers } = req.body;
-    if (!Array.isArray(numbers) || numbers.length === 0) {
-      res.status(400).json({ message: 'Missing fire zone numbers' });
-      return;
-    }
-    const fireZoneRegex = /^[1-9]+$/;
-    const invalidNumbers = numbers.filter(num => !fireZoneRegex.test(num));
-    if (invalidNumbers.length > 0) {
-      res.status(400).json({ message: `Invalid fire zone numbers: ${invalidNumbers.join(', ')}` });
-      return;
-    }
 
     try {
       const deleteResult = await usersCollection.deleteMany({ id: { $in: numbers } });
@@ -550,7 +512,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   };
-  app.post('/api/users/delete', adminDeleteLimiter, requireAdmin, deleteUser)
+  app.post('/api/users/delete', limit.adminDeleteLimiter, requireAdmin, sanitise.sanitizeFireZoneNumber, deleteUser)
 
 
   const updateUser: RequestHandler = async (req, res) => {
@@ -622,7 +584,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return;
       }
   }
-  app.post('/api/users/updateRecord', adminUserMutationLimiter, sanitizeUpdatedUser, requireAdmin, updateUser)
+  app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, sanitise.sanitizeUpdatedUser, requireAdmin, updateUser)
 
 
   const reportRun: RequestHandler = async (req, res) => {
@@ -763,7 +725,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/run', reportRunLimiter, sanitizeReportingRunInput, requireAdmin, reportRun)
+  app.post('/api/reports/run', limit.reportRunLimiter, sanitise.sanitizeReportingRunInput, requireAdmin, reportRun)
 
 
   const reportExport: RequestHandler = async (req, res) => {
@@ -1051,35 +1013,20 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   };
-  app.post("/api/reports/export", reportExportLimiter, sanitizeReportingExportInput, requireAdmin, reportExport);
+  app.post("/api/reports/export", limit.reportExportLimiter, sanitise.sanitizeReportingExportInput, requireAdmin, reportExport);
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
     try {
-      const username = String(req.body.username ?? "").trim();
-
-      const usernameRegex = /^[A-Za-z]+(?:\.[A-Za-z]+)?(?:-[A-Za-z]+)?$/;
-
-      if (
-        username.length < 3 ||
-        username.length > 40 ||
-        !usernameRegex.test(username)
-      ) {
-        req.session.validUsername = undefined;
-
-        return res.status(400).json({
-          ok: false,
-          message: "Invalid username"
-        });
-      }
+      const username = String(req.body.username);
 
       const exists = await usersCollection.findOne(
         { username },
         {
           projection: {
             _id: 1,
-            username: 1
-          }
+            username: 1,
+          },
         }
       );
 
@@ -1088,26 +1035,25 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
         return res.status(404).json({
           ok: false,
-          message: "Username not found"
+          message: "Username not found",
         });
       }
 
       req.session.validUsername = username;
 
       return res.status(200).json({
-        ok: true
+        ok: true,
       });
     } catch (e) {
       console.error("checkUser error", e);
 
       return res.status(500).json({
         ok: false,
-        message: "Unable to check username"
+        message: "Unable to check username",
       });
     }
   };
-  app.post('/api/attendance/checkUser', usernameCheckLimiter, CheckUsername)
-
+  app.post('/api/attendance/checkUser', limit.usernameCheckLimiter, sanitise.sanitizeCheckUsernameInput, CheckUsername)
 
   const submitAttendance: RequestHandler = async (req, res) => {
   
@@ -1216,19 +1162,14 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     });
   };
 };
-  app.post('/api/attendance/submit', attendanceSubmitLimiter, sanitizeAttendanceInput, submitAttendance)
-
+  app.post('/api/attendance/submit', limit.attendanceSubmitLimiter, sanitise.sanitizeAttendanceInput, submitAttendance)
 
   const listNames: RequestHandler = async (req, res) => {
     try {
-      const query = String(req.query.q ?? "").trim().toLowerCase();
+      const query = String(req.query.q ?? "");
 
       if (query.length < 2) {
         return res.status(200).json([]);
-      }
-
-      if (query.length > 50) {
-        return res.status(400).json({ message: "Search query too long." });
       }
 
       const cacheKey = `username:${query}`;
@@ -1260,10 +1201,13 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(200).json(result);
     } catch (error) {
       console.error("Unable to list usernames:", error);
-      return res.status(500).json({ message: "Unable to list usernames." });
+
+      return res.status(500).json({
+        message: "Unable to list usernames.",
+      });
     }
   };
-  app.get('/api/attendance/usernameList',  usernameSearchLimiter, listNames)
+  app.get('/api/attendance/usernameList',  limit.usernameSearchLimiter, sanitise.sanitizeUsernameListQuery, listNames)
   
   const createIncident: RequestHandler = async (req, res) => {
     const {
@@ -1297,7 +1241,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   }
-  app.post('/api/attendance/createIncident', incidentCreateLimiter, requireRoleAssignmentPin, sanitizeIncidentCreation, createIncident)
+  app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin, sanitise.sanitizeIncidentCreation, createIncident)
   
   const listIncidents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listIncidents");
@@ -1340,7 +1284,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listIncidents', eventListLimiter, listIncidents)
+  app.get('/api/attendance/listIncidents', limit.eventListLimiter, listIncidents)
   
   const listEvents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listEvents");
@@ -1383,7 +1327,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listEvents', eventListLimiter, listEvents)
+  app.get('/api/attendance/listEvents', limit.eventListLimiter, listEvents)
 
   const roleAssignmentStatus: RequestHandler = (req, res) => {
     const roleAssignmentUnlockMinutes = 30;
@@ -1402,20 +1346,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       unlocked,
     });
   };
-  app.get( "/api/attendance/roleAssignment/status", roleReadLimiter, roleAssignmentStatus);
+  app.get( "/api/attendance/roleAssignment/status", limit.roleReadLimiter, roleAssignmentStatus);
 
   const roleAssignmentUnlock: RequestHandler = async (req, res) => {
     try {
-      const pin = String(req.body.pin ?? "").trim();
-
-      if (!/^\d{4}$/.test(pin)) {
-        req.session.canAssignRoles = false;
-
-        return res.status(400).json({
-          ok: false,
-          message: "Invalid PIN format.",
-        });
-      }
+      const pin = String(req.body.pin);
 
       const expectedPin = process.env.ROLE_ASSIGNMENT_PIN;
 
@@ -1428,6 +1363,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       if (pin !== expectedPin) {
         req.session.canAssignRoles = false;
+        req.session.roleAssignmentUnlockedAt = undefined;
 
         return res.status(403).json({
           ok: false,
@@ -1451,23 +1387,15 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post("/api/attendance/roleAssignment/unlock", rolePinLimiter, roleAssignmentUnlock);
+  app.post("/api/attendance/roleAssignment/unlock", limit.rolePinLimiter,  sanitise.sanitizeRoleAssignmentPinInput, roleAssignmentUnlock);
 
   const roleAssignmentEventsByDate: RequestHandler = async (req, res) => {
     try {
-      const date = String(req.query.date ?? "").trim();
-
-      if (!isValidEventDate(date)) {
-        return res.status(400).json({
-          message: "Invalid date format. Use YYYY-MM-DD.",
-        });
-      }
+      const date = String(req.query.date);
 
       const events = await eventsCollection
         .find(
-          {
-            eventDate: date,
-          },
+          { eventDate: date },
           {
             projection: {
               _id: 0,
@@ -1502,23 +1430,15 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.get("/api/attendance/roleAssignment/events", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentEventsByDate);
+  app.get("/api/attendance/roleAssignment/events", limit.roleReadLimiter, requireRoleAssignmentPin, sanitise.sanitizeEventDateQuery, roleAssignmentEventsByDate);
 
   const roleAssignmentAttendees: RequestHandler = async (req, res) => {
     try {
-      const eventNumber = String(req.query.eventNumber ?? "").trim();
-
-      if (!isValidEventNumber(eventNumber)) {
-        return res.status(400).json({
-          message: "Invalid event number.",
-        });
-      }
+      const eventNumber = String(req.query.eventNumber);
 
       const attendees = await recordsCollection
         .find(
-          {
-            eventNumber,
-          },
+          { eventNumber },
           {
             projection: {
               _id: 1,
@@ -1531,11 +1451,12 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             },
           }
         )
-        .sort({
-          name: 1,
-        })
         .limit(200)
         .toArray();
+
+      attendees.sort((a: any, b: any) =>
+        String(a.name ?? "").localeCompare(String(b.name ?? ""))
+      );
 
       const dto = attendees.map((record: any) => ({
         recordId: record._id.toString(),
@@ -1558,30 +1479,12 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.get("/api/attendance/roleAssignment/attendees", roleReadLimiter, requireRoleAssignmentPin, roleAssignmentAttendees);
+  app.get("/api/attendance/roleAssignment/attendees", limit.roleReadLimiter, requireRoleAssignmentPin, sanitise.sanitizeEventNumberQuery, roleAssignmentAttendees);
 
   const updateEventRoles: RequestHandler = async (req, res) => {
     try {
-      const eventNumber = String(req.body.eventNumber ?? "").trim();
+      const eventNumber = String(req.body.eventNumber);
       const updates = req.body.updates;
-
-      if (!isValidEventNumber(eventNumber)) {
-        return res.status(400).json({
-          message: "Invalid event number.",
-        });
-      }
-
-      if (!Array.isArray(updates) || updates.length === 0) {
-        return res.status(400).json({
-          message: "No role updates provided.",
-        });
-      }
-
-      if (updates.length > 200) {
-        return res.status(400).json({
-          message: "Too many role updates.",
-        });
-      }
 
       const now = Date.now();
       const operations: AnyBulkWriteOperation<Document>[] = [];
@@ -1602,11 +1505,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           });
         }
 
-        const cleanRoles = [
-          ...new Set(
-            roles.map((role: unknown) => String(role).trim()).filter(Boolean)
-          ),
-        ];
+        const cleanRoles = [...new Set(roles)];
 
         const invalidRoles = cleanRoles.filter(
           (role) => !allowedRoles.includes(role)
@@ -1649,33 +1548,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post("/api/attendance/roleAssignment/updateRoles", roleUpdateLimiter, requireRoleAssignmentPin, updateEventRoles);
+  app.patch("/api/attendance/roleAssignment/updateRoles", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeUpdateEventRolesBody, updateEventRoles);
 
   const roleReportRun: RequestHandler = async (req, res) => {
     try {
       const { startEpoch, endEpoch, names } = req.body;
-
-      if (
-        typeof startEpoch !== "number" ||
-        typeof endEpoch !== "number" ||
-        endEpoch < startEpoch
-      ) {
-        return res.status(400).json({
-          message: "Invalid date range.",
-        });
-      }
-
-      if (!Array.isArray(names) || names.length === 0) {
-        return res.status(400).json({
-          message: "At least one member must be selected.",
-        });
-      }
-
-      if (names.length > 300) {
-        return res.status(400).json({
-          message: "Too many members selected.",
-        });
-      }
 
       const query: any = {
         epochTimestamp: {
@@ -1750,7 +1627,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post("/api/reports/roles/run", reportRunLimiter, requireAdmin, roleReportRun);
+
+  app.post("/api/reports/roles/run", limit.reportRunLimiter, requireAdmin, sanitise.sanitizeRoleReportRunInput, roleReportRun);
 
   const roleReportExport: RequestHandler = async (req, res) => {
     try {
@@ -1761,28 +1639,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         formattedStart,
         formattedEnd,
       } = req.body;
-
-      if (
-        typeof startEpoch !== "number" ||
-        typeof endEpoch !== "number" ||
-        endEpoch < startEpoch
-      ) {
-        return res.status(400).json({
-          message: "Invalid date range.",
-        });
-      }
-
-      if (!Array.isArray(names) || names.length === 0) {
-        return res.status(400).json({
-          message: "At least one member must be selected.",
-        });
-      }
-
-      if (names.length > 300) {
-        return res.status(400).json({
-          message: "Too many members selected.",
-        });
-      }
 
       const query: any = {
         epochTimestamp: {
@@ -1875,7 +1731,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post("/api/reports/roles/export", reportExportLimiter, requireAdmin, roleReportExport);
+
+  app.post("/api/reports/roles/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeRoleReportExportInput, roleReportExport);
 
 app.use(errorHandler);
 

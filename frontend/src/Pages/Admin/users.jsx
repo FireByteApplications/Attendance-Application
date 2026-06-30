@@ -77,7 +77,7 @@ export default function Users() {
       memberType: editingUser.membership_type,
     };
     fetch(`${apiUrl}/api/users/updateRecord`, {
-      method: 'POST',
+      method: 'PATCH',
       credentials: "include",
       headers: { 
         'Content-Type': 'application/json',

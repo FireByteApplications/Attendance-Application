@@ -391,7 +391,7 @@ export default function RoleAssignment() {
       const response = await fetch(
         `${apiurl}/api/attendance/roleAssignment/updateRoles`,
         {
-          method: "POST",
+          method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
