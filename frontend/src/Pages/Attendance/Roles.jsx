@@ -13,6 +13,7 @@ const skills = {
     "Strike-Team",
     "Training",
     "Other-operational",
+    "Community-Engagement"
   ],
   "Pump operator": [
     "Incident-Call",
@@ -22,6 +23,7 @@ const skills = {
     "Strike-Team",
     "Training",
     "Other-operational",
+    "Community-Engagement"
   ],
   Driver: [
     "Incident-Call",
@@ -31,6 +33,7 @@ const skills = {
     "Strike-Team",
     "Training",
     "Other-operational",
+    "Community-Engagement"
   ],
   "Hose Operator": [
     "Incident-Call",
@@ -40,6 +43,7 @@ const skills = {
     "Strike-Team",
     "Training",
     "Other-operational",
+    "Community-Engagement"
   ],
   "BA Operator": [
     "Incident-Call",
@@ -47,6 +51,7 @@ const skills = {
     "Strike-Team",
     "Training",
     "Other-operational",
+    "Community-Engagement"
   ],
   "Traffic management": [
     "Incident-Call",
@@ -54,6 +59,7 @@ const skills = {
     "Deployment",
     "Strike-Team",
     "Other-operational",
+    "Community-Engagement"
   ],
   "Chainsaw Operator": [
     "Incident-Call",
