@@ -2,6 +2,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Navbar() {
+  const isProd = import.meta.env.VITE_STAGE === 'prod';
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -52,11 +53,16 @@ export default function Navbar() {
   };
 
   const getTitle = () => {
-    return pageTitleMap[path] || "JRFB Attendance Application";
+    if (isProd === true){
+      return pageTitleMap[path] || "JRFB Attendance Application";
+    } else {
+      return pageTitleMap[path] + " (Dev)" || "JRFB Attendance Application"
+    }
+    
   };
 
   return (
-    <nav className="navbar navbar-dark bg-dark">
+    <nav className={`navbar navbar-dark ${isProd === true ? "bg-dark" : "bg-danger"}`}>
       <div className="container-fluid d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
           {/* Back Button (not on index) */}
