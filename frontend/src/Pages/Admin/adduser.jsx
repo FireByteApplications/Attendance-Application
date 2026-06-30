@@ -101,7 +101,7 @@ const AddUser = () => {
               placeholder="Last Name"
               maxLength={25}
               required
-              pattern={"^[A-Za-z\\s\\-]+$"}
+              pattern={"^[a-zA-Z-'\s]{1,25}$"}
               value={formData.lastName}
               onChange={handleChange}
             />

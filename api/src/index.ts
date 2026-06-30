@@ -584,7 +584,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return;
       }
   }
-  app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, sanitise.sanitizeUpdatedUser, requireAdmin, updateUser)
+  app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, requireAdmin, sanitise.sanitizeUpdatedUser,  updateUser)
 
 
   const reportRun: RequestHandler = async (req, res) => {
@@ -725,7 +725,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   }
-  app.post('/api/reports/run', limit.reportRunLimiter, sanitise.sanitizeReportingRunInput, requireAdmin, reportRun)
+  app.post('/api/reports/run', limit.reportRunLimiter, requireAdmin, sanitise.sanitizeReportingRunInput,  reportRun)
 
 
   const reportExport: RequestHandler = async (req, res) => {
@@ -1013,7 +1013,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   };
-  app.post("/api/reports/export", limit.reportExportLimiter, sanitise.sanitizeReportingExportInput, requireAdmin, reportExport);
+  app.post("/api/reports/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeReportingExportInput,  reportExport);
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
@@ -1327,7 +1327,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listEvents', limit.eventListLimiter, listEvents)
+  app.get('/api/attendance/listEvents', limit.eventListLimiter, requireRoleAssignmentPin, listEvents)
 
   const roleAssignmentStatus: RequestHandler = (req, res) => {
     const roleAssignmentUnlockMinutes = 30;
@@ -1513,7 +1513,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
         if (invalidRoles.length > 0) {
           return res.status(400).json({
-            message: `Invalid roles: ${invalidRoles.join(", ")}`,
+            message: `Invalid roles`,
           });
         }
 

@@ -189,14 +189,14 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
   };
 
   const validators = [
-    { value: sanitized.name, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'name' },
-    { value: sanitized.operational, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'operational' },
-    { value: sanitized.activity, pattern: /^[a-zA-Z0-9\s-]+$/, field: 'activity' },
-    { value: sanitized.baType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'baType' },
-    { value: sanitized.chainsawType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'chainsawType' },
-    { value: sanitized.deploymentType, pattern: /^[a-zA-Z0-9\s]+$/, field: 'deploymentType' },
-    { value: sanitized.deploymentLocation, pattern: /^[a-zA-Z0-9\s]+$/, field: 'deploymentLocation' },
-    { value: sanitized.otherType, pattern: /^[a-zA-Z0-9\s\.,\-\']+$/, field: 'otherType'},
+    { value: sanitized.name, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'name' },
+    { value: sanitized.operational, pattern: /^(Non-Operational)?(Operational)?$/, field: 'operational' },
+    { value: sanitized.activity, pattern: /^[a-zA-Z\s-]{1,21}$/, field: 'activity' },
+    { value: sanitized.baType, pattern: /^(Cat\s1)?(Pumper)?$/, field: 'baType' },
+    { value: sanitized.chainsawType, pattern: /^(Cat\s1)?(Pumper)?(Cat\s9)?$/, field: 'chainsawType' },
+    { value: sanitized.deploymentType, pattern: /^(Bushfire)?(Flood)?$/, field: 'deploymentType' },
+    { value: sanitized.deploymentLocation, pattern: /^(Local)?(Out\sof\sarea)?$/, field: 'deploymentLocation' },
+    { value: sanitized.otherType, pattern: /^[a-zA-Z0-9\s\.,\-\']{1,50}$/, field: 'otherType'},
     { value: sanitized.eventNumber, pattern: /^\d{2}-\d{1,8}$/, field: 'eventNumber'}
   ]
 
@@ -234,13 +234,13 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
   };
 
   const validators = [
-    { value: sanitized.oldname, pattern: /^[a-zA-Z-\s]+$/, field: 'Old Name' },
-    { value: sanitized.name, pattern: /^[a-zA-Z-\s]+$/, field: 'Name' },
+    { value: sanitized.oldname, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'Old Name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'Name' },
     { value: sanitized.oldfzNumber, pattern: /^\d{1,9}?$/, field: 'Old Firezone Number' },
     { value: sanitized.fzNumber, pattern: /^\d{1,9}?$/, field: 'FireZone Number' },
-    { value: sanitized.memberStatus, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
-    { value: sanitized.memberClassification, pattern: /^[a-zA-Z]+$/, field: 'Membership Classification' },
-    { value: sanitized.memberType, pattern: /^[a-zA-Z\s]+$/, field: 'Membership Type' }
+    { value: sanitized.memberStatus, pattern: /^[a-zA-Z]{1,10}(\(?[a-zA-Z]{4}\))?$/, field: 'Membership Status' },
+    { value: sanitized.memberClassification, pattern: /^[a-zA-Z]{1,12}$/, field: 'Membership Classification' },
+    { value: sanitized.memberType, pattern: /^[a-zA-Z]{1,11}(\s[a-zA-Z]{7})?$/, field: 'Membership Type' }
   ]
 
   for (const { value, pattern, field } of validators) {
@@ -270,12 +270,12 @@ export function sanitizeUser(req: Request, res: Response, next: NextFunction) {
   };
 
   const validators = [
-    { value: sanitized.firstName, pattern: /^[a-zA-Z-]+$/, field: 'First Name' },
-    { value: sanitized.lastName, pattern: /^[a-zA-Z-]+$/, field: 'Last Name' },
+    { value: sanitized.firstName, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'First Name' },
+    { value: sanitized.lastName, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'Last Name' },
     { value: sanitized.fireZoneNumber, pattern: /^\d{1,9}?$/, field: 'Firezone Number' },
-    { value: sanitized.Status, pattern: /^[a-zA-Z]+\(?[a-zA-Z]+\)?$/, field: 'Membership Status' },
-    { value: sanitized.Classification, pattern: /^[a-zA-Z]+$/, field: 'Membership Classification' },
-    { value: sanitized.Type, pattern: /^[a-zA-Z\s]+$/, field: 'Membership type' }
+    { value: sanitized.Status, pattern: /^[a-zA-Z]{1,10}(\(?[a-zA-Z]{4}\))?$/, field: 'Membership Status' },
+    { value: sanitized.Classification, pattern: /^[a-zA-Z]{1,12}$/, field: 'Membership Classification' },
+    { value: sanitized.Type, pattern: /^[a-zA-Z]{1,11}(\s[a-zA-Z]{7})?$/, field: 'Membership type' }
   ]
 
   for (const { value, pattern, field } of validators) {
@@ -323,9 +323,9 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
   };
 
   const validators = [
-    { value: sanitized.name,               pattern: /^[a-zA-Z0-9\s-]+$/,  field: 'name' },
-    { value: sanitized.operational,        pattern: /^[a-zA-Z0-9\s-]+$/,  field: 'operational' },
-    { value: sanitized.activity,           pattern: /^[a-zA-Z0-9\s-]+$/,  field: 'activity' },
+    { value: sanitized.name,               pattern: /^[a-zA-Z-'\s]{1,50}$/,  field: 'name' },
+    { value: sanitized.operational,        pattern: /^(Non-Operational)?(Operational)?$/,  field: 'operational' },
+    { value: sanitized.activity,           pattern: /^[a-zA-Z\s-]{1,21}$/,  field: 'activity' },
   ] as const;
 
   const minMS = moment.tz('2023-01-01 00:00:00', 'Australia/Sydney').valueOf();
@@ -403,9 +403,9 @@ export function sanitizeReportingExportInput(req: Request, res: Response, next: 
 
   const validators = [
 
-    { value: sanitized.name, field: 'name', pattern: /^[a-zA-Z0-9\s-]*$/ },
-    { value: sanitized.operational, field: 'operational', pattern: /^[a-zA-Z0-9\s-]*$/ },
-    { value: sanitized.activity, field: 'activity', pattern: /^[a-zA-Z0-9\s-]*$/ },
+    { value: sanitized.name, field: 'name', pattern: /^([a-zA-Z-'\s]{1,50})?$/ },
+    { value: sanitized.operational, field: 'operational', pattern: /^((Non-Operational)?(Operational)?)?$/ },
+    { value: sanitized.activity, field: 'activity', pattern: /^([a-zA-Z\s-]{1,21})?$/ },
 
     { value: sanitized.includeZeroAttendance, field: 'includeZeroAttendance', validate: (v: boolean) => typeof v === 'boolean' },
     { value: sanitized.detailed, field: 'detailed', validate: (v: boolean) => typeof v === 'boolean' },
@@ -484,7 +484,7 @@ export function sanitizeIncidentCreation(req: Request, res: Response, next: Next
 
   if (!sanitized.IncidentDescription) {
     errors.push("Incident description is required");
-  } else if (!/^[A-Za-z0-9\s]+$/.test(sanitized.IncidentDescription)) {
+  } else if (!/^[A-Za-z0-9\s,\.-]{1,50}$/.test(sanitized.IncidentDescription)) {
     errors.push("Incident description can only contain letters and numbers");
   }
 

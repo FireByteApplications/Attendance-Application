@@ -44,7 +44,7 @@ export default function Users() {
     const temp = document.createElement("div");
     temp.textContent = input;
     let sanitizedInput = temp.innerHTML;
-    if (type === "name") return sanitizedInput.replace(/[^a-zA-Z\s-]/g, "").trim();
+    if (type === "name") return sanitizedInput.replace(/[^a-zA-Z\s-']/g, "").trim();
     if (type === "fzNumber") return sanitizedInput.replace(/[^0-9]/g, "").slice(0, 12);
     return sanitizedInput;
   };
