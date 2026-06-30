@@ -1,16 +1,16 @@
 // utils/formValidation.js
 
 export const validateName = (value) => 
-  /^[a-zA-Z\s-]+$/.test(value);
+  /^[a-zA-Z-'\s]{1,50}$/.test(value);
 
 export const validateSelections = (value) => 
-  /^[a-zA-Z\s-()]+$/.test(value);
+  /^[a-zA-Z\s-\(\)]{1,25}$/.test(value);
 
 export const validateFireZoneNumber = (value) => 
-  /^[1-9]+$/.test(value);
+  /^\d{1,9}$/.test(value);
 
 export const validateOtherType = (value) => 
-  /^[a-zA-Z\s.,']+$/.test(value);
+  /^[a-zA-Z0-9\s\.,\-\']{1,50}$/.test(value);
 
 export const sanitizeName = (name) =>
   name.trim();
@@ -48,8 +48,8 @@ const allowedChainsawTypes = ["Cat 1", "Pumper", "Cat 9", "All Vehicles"];
 export function validateOperationalAttendanceData(data) {
   const errors = [];
 
-  const nameRegex = /^[a-zA-Z\s-]+$/;
-  const otherTypeRegex = /^[A-Za-z0-9\s]+$/;
+  const nameRegex = /^[a-zA-Z-'\s]{1,50}$/;
+  const otherTypeRegex = /^[a-zA-Z0-9\s\.,\-\']{1,50}$/;
   const eventNumber = String(data.eventNumber ?? "").trim();
   const eventRequiredActivities = [
   "Incident-Call",
@@ -161,7 +161,7 @@ export const validateUserForm = (formData) => {
   }
 
   if (!validateFireZoneNumber(formData.fireZoneNumber)) {
-    errors.push("Fire zone number must contain digits 1-9 only.");
+    errors.push("Fire zone number must contain digits 0-9 only.");
   }
 
   if (
@@ -184,7 +184,7 @@ export const validateIncidentCreationForm = (formdata) => {
     errors.push("Activ Incident id must be in format 26-12345678")
   }
   if (!validateDescription(formdata.IncidentDescription)) {
-    errors.push("Description can only contain letters and numbers")
+    errors.push("Description must not be empty")
   }
   return errors;
 }

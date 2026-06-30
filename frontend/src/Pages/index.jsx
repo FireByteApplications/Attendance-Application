@@ -40,11 +40,11 @@ export default function Home() {
         </div>
         <div className="col-md-6 mb-4 d-flex">
           <Link
-            to="/createincidents"
+            to="/manageincidents"
             className="text-decoration-none btn btn-link p-0 w-100"
           >
             <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
-              <h4 className="mb-0">Incident Creation</h4>
+              <h4 className="mb-0">Incident Management</h4>
             </div>
           </Link>
         </div>

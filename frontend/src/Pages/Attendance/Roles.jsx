@@ -53,6 +53,13 @@ const skills = {
     "Other-operational",
     "Community-Engagement"
   ],
+  "BACO": [
+    "Incident-Call",
+    "Deployment",
+    "Strike-Team",
+    "Training",
+    "Other-operational"
+  ],
   "Traffic management": [
     "Incident-Call",
     "Hazard-Reduction",
@@ -391,7 +398,7 @@ export default function RoleAssignment() {
       const response = await fetch(
         `${apiurl}/api/attendance/roleAssignment/updateRoles`,
         {
-          method: "POST",
+          method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
@@ -471,6 +478,7 @@ export default function RoleAssignment() {
                   setPin(digitsOnly.slice(0, 4));
                 }}
                 autoComplete="off"
+                required
               />
             </div>
 

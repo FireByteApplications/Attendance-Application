@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react";
+import {useState, useEffect, useRef} from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "../../styles/Attendance.module.css";
 import { useTitle } from '../../hooks/useTitle.jsx';
@@ -42,35 +42,18 @@ export default function OperationalPage() {
   const [submitStatus, setSubmitStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [incidents, setIncidents] = useState([])
-  const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState("")
+  const [incidentDropdownOpen, setIncidentDropdownOpen] = useState(false);
 
+  const selectedIncident = incidents.find(
+  (incident) => incident.eventNumber === selectedEvent
+  );
+
+  const selectedIncidentLabel = selectedIncident
+    ? `${selectedIncident.eventNumber} - ${selectedIncident.description}`
+    : "Select Incident for attendance";
   const navigate = useNavigate();
 
-  const fetchEvents = async () => {
-  try {
-    const response = await fetch(`${apiurl}/api/attendance/listevents`, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
-      },
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error(result.message || "Failed to fetch Events");
-      return;
-    }
-
-    setEvents(result);
-    console.log(result);
-  } catch (error) {
-    console.error("Error fetching Events:", error);
-  }
-};
 
 const fetchIncidents = async () => {
   try {
@@ -198,7 +181,6 @@ const fetchIncidents = async () => {
   };
 
   useEffect(() => {
-    fetchEvents();
     fetchIncidents();
   }, []);
 
@@ -344,39 +326,48 @@ const fetchIncidents = async () => {
         )}
         {selectedActivity !== "" && selectedActivity == 'Incident-Call' && (
           <div className="d-flex dropdown justify-content-center">
-            <button
-              className="btn btn-secondary dropdown-toggle my-2"
-              type="button"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="outside"
-              aria-expanded="false"
-            >
-              {selectedEvent || "Select Incident for attendance"}
-            </button>
+           <div className="dropdown">
+              <button
+                className="btn btn-secondary dropdown-toggle my-2"
+                type="button"
+                onClick={() => setIncidentDropdownOpen((current) => !current)}
+                aria-expanded={incidentDropdownOpen}
+              >
+                {selectedIncidentLabel}
+              </button>
 
-            <ul className="dropdown-menu p-3">
-              {incidents.map((incident) => (
-                <li key={incident.eventNumber}>
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="selectedIncident"
-                      id={`Incident-${incident.eventNumber}`}
-                      checked={selectedEvent === incident.eventNumber}
-                      onChange={() => setSelectedEvent(incident.eventNumber)}
-                    />
+              <ul className={`dropdown-menu p-3 ${incidentDropdownOpen ? "show" : ""}`}>
+                {incidents.map((incident) => {
+                  const incidentLabel = `${incident.eventNumber} - ${incident.description}`;
 
-                    <label
-                      className="form-check-label"
-                      htmlFor={`Incident-${incident.eventNumber}`}
-                    >
-                      {incident.description}
-                    </label>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  return (
+                    <li key={incident.eventNumber}>
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="selectedIncident"
+                          id={`Incident-${incident.eventNumber}`}
+                          checked={selectedEvent === incident.eventNumber}
+                          onChange={() => {
+                            setSelectedEvent(incident.eventNumber);
+                            setIncidentDropdownOpen(false);
+                          }}
+                          required
+                        />
+
+                        <label
+                          className="form-check-label"
+                          htmlFor={`Incident-${incident.eventNumber}`}
+                        >
+                          {incidentLabel}
+                        </label>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
         )}
         <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"

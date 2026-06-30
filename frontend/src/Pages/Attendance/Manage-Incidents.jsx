@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useTitle } from "../../hooks/useTitle";
+import { useTitle } from "../../hooks/useTitle.jsx";
 import { useCsrfToken } from "../../Components/csrfHelper.jsx";
 import { validateIncidentCreationForm } from "../../Utils/formValidation.js";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function CreateIncidentsPage() {
-  useTitle("Incident Creation");
+  useTitle("Incident Mangement");
 
   const csrfToken = useCsrfToken(apiurl);
 
@@ -23,6 +23,8 @@ export default function CreateIncidentsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [incidentsArray, setIncidentsArray] = useState([]);
+
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (csrfToken) {
@@ -195,6 +197,7 @@ export default function CreateIncidentsPage() {
       setIncDesc("");
 
       await listIncidents();
+
     } catch (err) {
       console.error("Submission error:", err);
       showMessage("error", "An error has occurred, please try again later.");
@@ -202,6 +205,45 @@ export default function CreateIncidentsPage() {
       setIsSubmitting(false);
     }
   };
+
+  const handleDelete = async (eventNumber) => {
+    setIsDeleting(true);
+    setSubmitMessage(null);
+    setSubmitStatus(null); 
+
+    console.log(eventNumber)
+
+    try {
+      const payload = {eventNumber: eventNumber}
+
+      const response = await fetch(`${apiurl}/api/attendance/deleteIncident`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+        },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      
+      if (!response.ok) {
+        showMessage("error", "Incident deletion error: " + result.message)
+        setIsDeleting(false)
+        return
+      }
+
+      showMessage("success", "Incident deleted")
+      setIsDeleting(false)
+      await listIncidents()
+      return
+
+  } catch (error) {
+      console.error("An error has occured", error);
+      showMessage("error", "An error has occured please try again later");
+      setIsDeleting(false)
+    }
+  }
 
   if (loadingStatus) {
     return (
@@ -239,7 +281,7 @@ export default function CreateIncidentsPage() {
         <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
           <div className="card-body pt-4 px-4">
             <h4 className="card-title mb-4 text-center">
-              Enter Incident Creation PIN
+              Enter Incident Management PIN
             </h4>
 
             <form onSubmit={handleUnlock}>
@@ -261,6 +303,7 @@ export default function CreateIncidentsPage() {
                     setPin(digitsOnly.slice(0, 4));
                   }}
                   autoComplete="off"
+                  required
                 />
               </div>
 
@@ -289,6 +332,7 @@ export default function CreateIncidentsPage() {
                   className="form-control"
                   value={incDate}
                   onChange={(e) => setIncDate(e.target.value)}
+                  required
                 />
               </div>
 
@@ -304,6 +348,7 @@ export default function CreateIncidentsPage() {
                   placeholder="Activ Incident ID"
                   value={activId}
                   onChange={(e) => setActivId(e.target.value)}
+                  required
                 />
               </div>
 
@@ -316,10 +361,12 @@ export default function CreateIncidentsPage() {
                   id="descriptionInput"
                   className="form-control text-start"
                   rows="3"
-                  placeholder="Optional note. Stored event description can still be generated from the date on the backend."
+                  placeholder="Type of incident - Location - Date 
+Example: AFA Kiama 01 July 26"
                   style={{ height: "100px", resize: "none" }}
                   value={incDesc}
                   onChange={(e) => setIncDesc(e.target.value)}
+                  required
                 />
               </div>
 
@@ -365,6 +412,13 @@ export default function CreateIncidentsPage() {
                           <td>{incident.eventDate}</td>
                           <td>{incident.eventNumber}</td>
                           <td>{incident.description}</td>
+                          <td>
+                            <button 
+                            type="button" 
+                            className="btn btn-danger"
+                            onClick={() => handleDelete(incident.eventNumber)}
+                            disabled={isDeleting}>
+                              {isDeleting ? "Deleting..." : "Delete" }</button></td>
                         </tr>
                       ))
                     )}
