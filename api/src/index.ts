@@ -11,7 +11,7 @@ import { requireAdmin } from './middleware/requireadmin';
 import { csrfMiddleware} from './middleware/csrfToken';
 import escapeStringRegexp from 'escape-string-regexp';
 import helmet from 'helmet';
-import { promisify } from 'util';
+import { promisify } from 'node:util';
 import {
   csrfTokenLimiter,
   authStatusLimiter,
