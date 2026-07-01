@@ -25,6 +25,7 @@ export default function CreateIncidentsPage() {
   const [incidentsArray, setIncidentsArray] = useState([]);
 
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deletingEventNumber, setDeletingEventNumber] = useState("")
 
   useEffect(() => {
     if (csrfToken) {
@@ -210,6 +211,7 @@ export default function CreateIncidentsPage() {
     setIsDeleting(true);
     setSubmitMessage(null);
     setSubmitStatus(null); 
+    setDeletingEventNumber(eventNumber)
 
     console.log(eventNumber)
 
@@ -230,11 +232,13 @@ export default function CreateIncidentsPage() {
       if (!response.ok) {
         showMessage("error", "Incident deletion error: " + result.message)
         setIsDeleting(false)
+        setDeletingEventNumber("")
         return
       }
 
       showMessage("success", "Incident deleted")
       setIsDeleting(false)
+      setDeletingEventNumber("")
       await listIncidents()
       return
 
@@ -418,7 +422,7 @@ Example: AFA Kiama 01 July 26"
                             className="btn btn-danger"
                             onClick={() => handleDelete(incident.eventNumber)}
                             disabled={isDeleting}>
-                              {isDeleting ? "Deleting..." : "Delete" }</button></td>
+                              {isDeleting && deletingEventNumber === incident.eventNumber ? "Deleting..." : "Delete" }</button></td>
                         </tr>
                       ))
                     )}
