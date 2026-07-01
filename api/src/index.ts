@@ -1227,6 +1227,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     const {
       eventNumber
     } = req.body
+    console.log(req.body)
+
     if (!req.body.eventNumber) {
       res.status(400).json({message: "Bad request"})
     }
