@@ -120,10 +120,8 @@ client.connect().then(() => {
   const recordsCollection = db.collection('Records');
   const eventsCollection = db.collection('Events');
   const countersCollection = db.collection<{ _id: string; seq: number }>("Counters");
-  const XLSX_CONTENT_TYPE =
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-function isEmptyXlsxCellValue(value: XlsxCellValue): boolean {
+function isEmptyXlsxCellValue(value: XlsxCell): boolean {
   if (value == null) return true;
   if (typeof value === "string") return value.trim() === "";
   return false;
@@ -155,18 +153,30 @@ function removeEmptyColumns(
   return rows;
 }
 
+
+
 async function sendXlsxResponse(
   res: Response,
   filename: string,
   rows: XlsxRow[]
-): Promise<void> {
-  const buffer = await writeExcelFile(rows).toBuffer();
+) {
+  const buffer = await writeExcelFile(rows, {
+    sheet: "Report",
+    columns: [
+      {
+        width: 80,
+      },
+    ],
+  }).toBuffer();
 
-  res.setHeader("Content-Type", XLSX_CONTENT_TYPE);
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Length", String(buffer.length));
 
-  res.status(200).send(buffer);
+  res.send(Buffer.from(buffer));
 }
   
   function invalidateUserCaches() {
@@ -1224,10 +1234,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin, sanitise.sanitizeIncidentCreation, createIncident)
   
   const deleteIncident: RequestHandler = async (req, res) => {
-    const {
-      eventNumber
-    } = req.body
-    if (!req.body.eventNumber) {
+    const eventNumber = String(req.params.eventNumber)
+    console.log(req.params.eventNumber)
+
+    if (!req.params.eventNumber) {
       res.status(400).json({message: "Bad request"})
     }
     try {
@@ -1238,9 +1248,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       const findEventsWithIncidents = await recordsCollection.aggregate(aggregationPipeline).toArray()
       const count = findEventsWithIncidents[0]?.events_with_incidents ?? 0;
-      if (count > 0) {
+      if (count > 0 && !eventNumber.startsWith("EVT-")) {
         res.status(409).json({message: "Unable to delete incident as there are attendances against it"})
-      } else {
+      } else if (count == 1 && eventNumber.startsWith("EVT-")) {
         const deleteQuery = {eventNumber : `${eventNumber}`}
         const result = await eventsCollection.deleteOne(deleteQuery)
 
@@ -1249,7 +1259,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           invalidateEventCaches();
         } else {
           res.status(404).json({message: "Incident " + eventNumber + " not found unable to be deleted"})
-      }
+      } 
+
+      } else {
+        res.status(409).json({message: "Unable to delete event as there is more than 1 attendance against it"})
       }
       } catch(error: any) {
         console.error("Error deleting incident", error)
@@ -1261,7 +1274,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       
   }
-  app.delete('/api/attendance/deleteIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberQuery, deleteIncident)
+  app.delete('/api/attendance/deleteIncident/:eventNumber', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberDelete, deleteIncident)
 
   const listIncidents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listIncidents");
@@ -1580,7 +1593,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         };
       }
 
-      const MAX_ROWS = 50000;
+      const MAX_ROWS = 5000;
 
       const records = await recordsCollection
         .find(
@@ -1647,17 +1660,24 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         startEpoch,
         endEpoch,
         names,
+        roles,
         formattedStart,
         formattedEnd,
       } = req.body;
+
+      const hasMembersSelected = Array.isArray(names) && names.length > 0;
+      const hasRolesSelected = Array.isArray(roles) && roles.length > 0;
+
+      if (!hasMembersSelected && !hasRolesSelected) {
+        return res.status(400).json({
+          message: "At least one member or role must be selected.",
+        });
+      }
 
       const query: any = {
         epochTimestamp: {
           $gte: startEpoch,
           $lte: endEpoch,
-        },
-        name: {
-          $in: names,
         },
         roles: {
           $exists: true,
@@ -1665,7 +1685,21 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         },
       };
 
-      const MAX_ROWS = 50000;
+      if (hasMembersSelected) {
+        query.name = {
+          $in: names,
+        };
+      }
+
+      if (hasRolesSelected) {
+        query.roles = {
+          $exists: true,
+          $ne: [],
+          $in: roles,
+        };
+      }
+
+      const MAX_ROWS = 5000;
 
       const records = await recordsCollection
         .find(query, {
@@ -1690,7 +1724,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       if (records.length > MAX_ROWS) {
         return res.status(413).json({
-          message: "Result too large. Narrow date range or selected members.",
+          message: "Result too large. Narrow date range or selected filters.",
         });
       }
 
@@ -1703,26 +1737,263 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         return String(a.name ?? "").localeCompare(String(b.name ?? ""));
       });
 
-      const rows: XlsxRow[] = [
-        [
-          "Date/Time",
-          "Name",
-          "Event Number",
-          "Operational",
-          "Activity",
-          "Roles",
-        ],
-        ...records.map((record: any) => [
-          moment
-            .tz(record.epochTimestamp, "Australia/Sydney")
-            .format("DD-MM-YYYY HH:mm"),
-          record.name ?? "",
-          record.eventNumber ?? "",
-          record.operational ?? "",
-          record.activity ?? "",
-          Array.isArray(record.roles) ? record.roles.join(", ") : "",
-        ]),
-      ];
+      const eventNumbers = Array.from(
+        new Set<string>(
+          records
+            .map((record: any) => String(record.eventNumber ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      const eventDocs =
+        eventNumbers.length > 0
+          ? await eventsCollection
+              .find(
+                {
+                  eventNumber: {
+                    $in: eventNumbers,
+                  },
+                },
+                {
+                  projection: {
+                    _id: 0,
+                    eventNumber: 1,
+                    description: 1,
+                  },
+                }
+              )
+              .toArray()
+          : [];
+
+      const eventDescriptionByNumber = new Map<string, string>(
+        eventDocs.map((event: any) => [
+          String(event.eventNumber),
+          String(event.description ?? ""),
+        ])
+      );
+
+      const getEventLine = (record: any) => {
+        const eventNumber = String(record.eventNumber ?? "");
+        const eventDescription =
+          eventDescriptionByNumber.get(eventNumber) ||
+          record.activity ||
+          "Event";
+
+        const date = moment
+          .tz(record.epochTimestamp, "Australia/Sydney")
+          .format("DD-MM-YYYY HH:mm");
+
+        return `${date}, ${eventDescription}`;
+      };
+
+      let rows: XlsxRow[] = [];
+
+      if (!hasMembersSelected && hasRolesSelected) {
+        /**
+         * ROLE REPORT
+         *
+         * Role assigned
+         *   Member
+         *     Events
+         *
+         * Role
+         *   Member
+         *     Date, eventDescription
+         */
+
+        rows = [
+          [
+            {
+              value: "Role assigned",
+              fontWeight: "bold",
+            },
+          ],
+          [
+            {
+              value: "Member",
+              indent: 1,
+            },
+          ],
+          [
+            {
+              value: "Events",
+              indent: 2,
+            },
+          ],
+          [null],
+        ];
+
+        const roleOrder = roles.filter((role: string) =>
+          records.some(
+            (record: any) =>
+              Array.isArray(record.roles) && record.roles.includes(role)
+          )
+        );
+
+        for (const role of roleOrder) {
+          rows.push([
+            {
+              value: role,
+              fontWeight: "bold",
+            },
+          ]);
+
+
+          const memberNames = Array.from(
+            new Set<string>(
+              records
+                .filter(
+                  (record: any) =>
+                    Array.isArray(record.roles) && record.roles.includes(role)
+                )
+                .map((record: any) => String(record.name ?? ""))
+                .filter(Boolean)
+            )
+          ).sort((a, b) => a.localeCompare(b));
+
+          for (const memberName of memberNames) {
+            rows.push([
+            {
+              value: memberName,
+              indent: 1,
+            },
+          ]);
+
+
+            const memberRoleRecords = records
+              .filter(
+                (record: any) =>
+                  record.name === memberName &&
+                  Array.isArray(record.roles) &&
+                  record.roles.includes(role)
+              )
+              .sort(
+                (a: any, b: any) =>
+                  Number(a.epochTimestamp ?? 0) -
+                  Number(b.epochTimestamp ?? 0)
+              );
+
+            for (const record of memberRoleRecords) {
+              rows.push([
+              {
+                value: getEventLine(record),
+                indent: 2,
+                wrap: true,
+              },
+            ]);
+            }
+          }
+
+          rows.push([""]);
+        }
+      } else {
+        /**
+         * MEMBER REPORT
+         *
+         * Member
+         *   Role performed
+         *     Events
+         *
+         * Member
+         *   Role
+         *     Date, eventDescription
+         */
+
+        rows = [
+          [
+            {
+              value: "Member",
+              fontWeight: "bold",
+            },
+          ],
+          [
+            {
+              value: "Role performed",
+              indent: 1,
+            },
+          ],
+          [
+            {
+              value: "Events",
+              indent: 2,
+            },
+          ],
+          [null],
+        ];
+
+        const memberOrder = hasMembersSelected
+          ? names.filter((name: string) =>
+              records.some((record: any) => record.name === name)
+            )
+          : Array.from(
+              new Set<string>(
+                records
+                  .map((record: any) => String(record.name ?? ""))
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b));
+
+        for (const memberName of memberOrder) {
+          rows.push([
+          {
+            value: memberName,
+            fontWeight: "bold",
+          },
+        ]);
+
+          const memberRecords = records.filter(
+            (record: any) => record.name === memberName
+          );
+
+          const roleOrder = Array.from(
+            new Set<string>(
+              memberRecords.flatMap((record: any) => {
+                if (!Array.isArray(record.roles)) return [];
+
+                return record.roles
+                  .map((role: unknown) => String(role))
+                  .filter((role: string) => {
+                    if (!hasRolesSelected) return true;
+
+                    return roles.includes(role);
+                  });
+              })
+            )
+          ).sort((a, b) => a.localeCompare(b));
+
+          for (const role of roleOrder) {
+            rows.push([
+            {
+              value: role,
+              indent: 1,
+            },
+          ]);
+
+            const roleRecords = memberRecords
+              .filter(
+                (record: any) =>
+                  Array.isArray(record.roles) && record.roles.includes(role)
+              )
+              .sort(
+                (a: any, b: any) =>
+                  Number(a.epochTimestamp ?? 0) -
+                  Number(b.epochTimestamp ?? 0)
+              );
+
+            for (const record of roleRecords) {
+              rows.push([
+              {
+                value: getEventLine(record),
+                indent: 2,
+                wrap: true,
+              },
+            ]);
+            }
+          }
+
+          rows.push([""]);
+        }
+      }
 
       const fallbackFormat = (epoch: number) =>
         new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
@@ -1730,7 +2001,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const fileStart = formattedStart || fallbackFormat(startEpoch);
       const fileEnd = formattedEnd || fallbackFormat(endEpoch);
 
-      const filename = `role-report-${fileStart}-${fileEnd}.xlsx`;
+      const reportType =
+        !hasMembersSelected && hasRolesSelected ? "role" : "member";
+
+      const filename = `${reportType}-report-${fileStart}-${fileEnd}.xlsx`;
 
       await sendXlsxResponse(res, filename, rows);
       return;

@@ -24,6 +24,8 @@ export default function RoleReports() {
 
   const [reportRows, setReportRows] = useState([]);
   const [reportCount, setReportCount] = useState(0);
+  const [reportType, setReportType] = useState("")
+  const [reportTypeSelected, setReportTypeSelected] = useState(false)
 
   const [selectedRoles, setSelectedRoles] = useState([]) 
 
@@ -86,6 +88,15 @@ export default function RoleReports() {
     }
   };
 
+  function handleReportType(type) {
+    setReportTypeSelected(true)
+    setReportType(type)
+    setSelectedNames([])
+    setSelectedRoles([])
+
+    memberButton = document.getElementById("memberReportButton")
+    roleButton = document.getElementById("roleReportButton")
+  }
   const handleNameToggle = (name) => {
     setSelectedNames((current) => {
       if (current.includes(name)) {
@@ -242,6 +253,7 @@ export default function RoleReports() {
           startEpoch,
           endEpoch,
           names: selectedNames,
+          roles: selectedRoles,
           formattedStart,
           formattedEnd,
         }),
@@ -298,8 +310,29 @@ export default function RoleReports() {
           </div>
         )}
 
-        <div className="card p-4 mb-4">
-          <form className="row g-3" onSubmit={runReport}>
+        <div className="card p-4 mb-4" id="filterForm">
+          <div className="card-body p-2">
+            <div className="d-flex gap-2 mb-2">
+              <button
+                type="button"
+                id="memberReportButton"
+                className={`btn btn-sm ${reportType === "member" ? "btn-primary" : "btn-outline-primary"}`}
+                onClick={() => handleReportType("member")}
+              >
+              Report by member
+              </button>
+              <button
+                type="button"
+                id="roleReportButton"
+                className={`btn btn-sm ${reportType === "role" ? "btn-primary" : "btn-outline-primary"}`}
+                onClick={() => handleReportType("role")}
+              >
+              Report by role
+              </button>
+            </div>
+          </div>
+          {reportTypeSelected && (
+            <form className="row g-3" onSubmit={runReport}>
             <div className="col-md-3">
               <label className="form-label">Start Date</label>
               <input
@@ -319,10 +352,10 @@ export default function RoleReports() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
-
-            <div className="col-md-4 position-relative">
+            <div className="d-flex gap-2 mb-2">
+            {reportTypeSelected && reportType === "member" && (
+              <div className="col-md-4 position-relative">
               <label className="form-label">Members</label>
-
               <button
                 type="button"
                 className="form-select text-start"
@@ -383,7 +416,9 @@ export default function RoleReports() {
                 </div>
               )}
             </div>
-            <div className="col-md-4 position-relative">
+            )}
+            {reportTypeSelected && reportType  === "role" && (
+              <div className="col-md-4 position-relative">
               <label className="form-label">Roles</label>
 
               <button
@@ -445,8 +480,9 @@ export default function RoleReports() {
                 </div>
               )}
             </div>
-
-            <div className="col-md-2 d-flex align-items-end">
+            )}
+            {reportTypeSelected && (
+              <div className="col-md-2 d-flex align-items-end">
               <button
                 type="submit"
                 className="btn btn-primary w-100"
@@ -455,7 +491,10 @@ export default function RoleReports() {
                 {isRunning ? "Running..." : "Run Report"}
               </button>
             </div>
+            )}
+            </div>
           </form>
+          )}
         </div>
 
         {reportRows.length > 0 && (

@@ -73,8 +73,27 @@ type EventServiceCollections = {
   countersCollection: Collection<CounterDocument>;
 };
 
-type XlsxCellValue = string | number | boolean | Date | null | undefined;
+type XlsxValue = string | number | boolean | Date;
 
-type XlsxRow = XlsxCellValue[];
+type XlsxStyledCell = {
+  value: XlsxValue;
+  type?: StringConstructor | NumberConstructor | BooleanConstructor | DateConstructor | "Formula";
+  format?: string;
+
+  fontWeight?: "bold";
+  fontStyle?: "italic";
+  fontSize?: number;
+  fontFamily?: string;
+  textColor?: string;
+  backgroundColor?: string;
+
+  align?: "left" | "center" | "right";
+  alignVertical?: "top" | "center" | "bottom";
+  indent?: number;
+  wrap?: boolean;
+};
+
+type XlsxCell = XlsxValue | XlsxStyledCell | null | undefined;
+type XlsxRow = XlsxCell[];
 
 }
