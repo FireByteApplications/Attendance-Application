@@ -175,7 +175,6 @@ export const validateUserForm = (formData) => {
   return errors;
 };
 export const validateIncidentCreationForm = (formdata) => {
-  console.log(formdata)
   const errors = [];
   if (!validateDateDMY(formdata.Date)) {
     errors.push("Date format invalid. Format required: DD/MM/YYY")

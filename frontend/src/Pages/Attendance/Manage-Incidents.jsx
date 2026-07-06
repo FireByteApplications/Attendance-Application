@@ -245,8 +245,6 @@ export default function CreateIncidentsPage() {
     setSubmitStatus(null); 
     setDeletingEventNumber(eventNumber)
 
-    console.log(eventNumber)
-
     try {
 
       const response = await fetch(`${apiurl}/api/attendance/deleteIncident/${eventNumber}`, {

@@ -1235,7 +1235,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   
   const deleteIncident: RequestHandler = async (req, res) => {
     const eventNumber = String(req.params.eventNumber)
-    console.log(req.params.eventNumber)
 
     if (!req.params.eventNumber) {
       res.status(400).json({message: "Bad request"})
@@ -1250,7 +1249,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const count = findEventsWithIncidents[0]?.events_with_incidents ?? 0;
       if (count > 0 && !eventNumber.startsWith("EVT-")) {
         res.status(409).json({message: "Unable to delete incident as there are attendances against it"})
-      } else if (count == 1 && eventNumber.startsWith("EVT-")) {
+      } else if (count == 1 && eventNumber.startsWith("EVT-") || !eventNumber.startsWith("EVT-")) {
         const deleteQuery = {eventNumber : `${eventNumber}`}
         const result = await eventsCollection.deleteOne(deleteQuery)
 
