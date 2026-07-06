@@ -22,7 +22,7 @@ export const validateIncidentID = (value) =>
   /^\d{2}-\d{1,8}$/.test(value);
 
 export const validateDescription = (value) =>
-  /^[A-Za-z0-9\s]+$/.test(value);
+  /^[A-Za-z0-9\s\-,]{1,50}$/.test(value);
 
 export const validateEventNumber = (value) =>
   /^EVT-\d{5}$/.test(value);
@@ -184,7 +184,7 @@ export const validateIncidentCreationForm = (formdata) => {
     errors.push("Activ Incident id must be in format 26-12345678")
   }
   if (!validateDescription(formdata.IncidentDescription)) {
-    errors.push("Description must not be empty")
+    errors.push("Description must not be empty, only contain letters numbers and hyphens and less than 50 characters")
   }
   return errors;
 }

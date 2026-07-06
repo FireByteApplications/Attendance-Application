@@ -23,6 +23,7 @@ export default function CreateIncidentsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [incidentsArray, setIncidentsArray] = useState([]);
+  const [eventsArray, setEventsArray] = useState([])
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingEventNumber, setDeletingEventNumber] = useState("")
@@ -62,6 +63,7 @@ export default function CreateIncidentsPage() {
   useEffect(() => {
     if (unlocked) {
       listIncidents();
+      listEvents();
     }
   }, [unlocked]);
 
@@ -138,6 +140,36 @@ export default function CreateIncidentsPage() {
       showMessage("error", "An error occurred fetching incidents.");
     }
   };
+
+  const listEvents = async () => {
+    try {
+      const response = await fetch(`${apiurl}/api/attendance/listEvents`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+        },
+      });
+
+      const result = await response.json();
+
+      if(!response.ok) {
+        showMessage(
+          "error",
+          result.message || "An error occured fetching non incident events"
+        )
+        return;
+      }
+      setEventsArray(Array.isArray(result) ? result : []);
+      } catch (err) {
+      console.error("Error fetching non incident events", err)
+      showMessage(
+        "error",
+        "An error occured fetching non incident events"
+      )
+    }
+  }
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -216,30 +248,34 @@ export default function CreateIncidentsPage() {
     console.log(eventNumber)
 
     try {
-      const payload = {eventNumber: eventNumber}
 
-      const response = await fetch(`${apiurl}/api/attendance/deleteIncident`, {
+      const response = await fetch(`${apiurl}/api/attendance/deleteIncident/${eventNumber}`, {
         method: "DELETE",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
-        body: JSON.stringify(payload)
       });
       const result = await response.json();
       
       if (!response.ok) {
-        showMessage("error", "Incident deletion error: " + result.message)
+        showMessage("error", "Deletion error: " + result.message)
         setIsDeleting(false)
         setDeletingEventNumber("")
         return
       }
-
-      showMessage("success", "Incident deleted")
+      var message = ''
+      if(eventNumber.startsWith("EVT-")) {
+        message = "Sucessfully deleted Event"
+      } else {
+        message = "Successfully deleted Incident"
+      }
+      showMessage("success", message )
       setIsDeleting(false)
       setDeletingEventNumber("")
       await listIncidents()
+      await listEvents()
       return
 
   } catch (error) {
@@ -390,15 +426,15 @@ Example: AFA Kiama 01 July 26"
             <div className="card-body p-4">
               <h4 className="card-title mb-4 text-center">Incidents</h4>
 
-              <div className="table-responsive">
+               <div className="table-responsive">
                 <table
-                  id="incidentTbl"
+                  id="EventTbl"
                   className="table table-striped table-hover align-middle mb-0"
                 >
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Incident ID</th>
+                      <th>Event ID</th>
                       <th>Description</th>
                     </tr>
                   </thead>
@@ -416,7 +452,7 @@ Example: AFA Kiama 01 July 26"
                           <td>{incident.eventDate}</td>
                           <td>{incident.eventNumber}</td>
                           <td>{incident.description}</td>
-                          <td>
+                          <td className="text-end">
                             <button 
                             type="button" 
                             className="btn btn-danger"
@@ -430,6 +466,48 @@ Example: AFA Kiama 01 July 26"
                 </table>
               </div>
             </div>
+            <div className="card-body p-4">
+                <h4 className="card-title mb-4 text-center">Non incident events</h4>
+                <div className="table-responsive">
+                  <table
+                    id="incidentTbl"
+                    className="table table-striped table-hover align-middle mb-0"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Event ID</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {eventsArray.length === 0 ? (
+                        <tr>
+                          <td colSpan="3" className="text-center text-muted">
+                            No non incident events found.
+                          </td>
+                        </tr>
+                      ) : (
+                        eventsArray.map((event) => (
+                          <tr key={event.eventNumber}>
+                            <td>{event.eventDate}</td>
+                            <td>{event.eventNumber}</td>
+                            <td>{event.description}</td>
+                            <td className="text-end">
+                              <button 
+                              type="button" 
+                              className="btn btn-danger"
+                              onClick={() => handleDelete(event.eventNumber)}
+                              disabled={isDeleting}>
+                                {isDeleting && deletingEventNumber === event.eventNumber ? "Deleting..." : "Delete" }</button></td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
           </div>
         </>
       )}
