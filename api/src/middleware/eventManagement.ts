@@ -47,7 +47,7 @@ export function createEventService({
     const newEvent = {
       eventNumber,
       eventDate,
-      description: activity + " On " + formatEventDateDescription(eventDate),
+      description: activity + " - " + formatEventDateDescription(eventDate),
       eventType: activity,
       createdAtEpoch: Date.now()
     };
