@@ -8,7 +8,6 @@ const roles = [
   "Chainsaw Operator"
 ]
 export default function CheckboxContainer({selectedRoles = [], setSelectedRoles}){
-    console.log(selectedRoles)
     function handleChange(e) {
         const {value, checked } = e.target
         setSelectedRoles((prev) => {

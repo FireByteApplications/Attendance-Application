@@ -543,6 +543,25 @@ export function sanitizeEventNumberQuery(
   next();
 }
 
+export function sanitizeEventNumberDelete(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const eventNumber = validator.trim(String(req.params.eventNumber ?? ""));
+
+  if (!isValidEventNumber(eventNumber)) {
+    res.status(400).json({
+      message: "Invalid event number.",
+    });
+    return;
+  }
+
+  req.params.eventNumber = eventNumber;
+
+  next();
+}
+
 export function sanitizeUpdateEventRolesBody(
   req: Request,
   res: Response,

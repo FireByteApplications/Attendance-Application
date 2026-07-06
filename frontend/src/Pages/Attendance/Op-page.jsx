@@ -74,7 +74,6 @@ const fetchIncidents = async () => {
     }
 
     setIncidents(result);
-    console.log(result);
   } catch (error) {
     console.error("Error fetching Incidents:", error);
   }
@@ -142,7 +141,6 @@ const fetchIncidents = async () => {
     }
 
     try {
-      console.log(data)
       setIsSubmitting(true)
       setSubmitMessage(null)
       setSubmitStatus(null)
