@@ -6,7 +6,7 @@ import { validateIncidentCreationForm } from "../../Utils/formValidation.js";
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function CreateIncidentsPage() {
-  useTitle("Incident Mangement");
+  useTitle("Event Mangement");
 
   const csrfToken = useCsrfToken(apiurl);
 
@@ -286,7 +286,7 @@ export default function CreateIncidentsPage() {
   if (loadingStatus) {
     return (
       <div className="container mt-5">
-        <p>Loading incident creation page...</p>
+        <p>Loading event management page...</p>
       </div>
     );
   }
@@ -319,7 +319,7 @@ export default function CreateIncidentsPage() {
         <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
           <div className="card-body pt-4 px-4">
             <h4 className="card-title mb-4 text-center">
-              Enter Incident Management PIN
+              Enter Event Management PIN
             </h4>
 
             <form onSubmit={handleUnlock}>
@@ -376,14 +376,14 @@ export default function CreateIncidentsPage() {
 
               <div className="mb-3 mt-5 text-center">
                 <label htmlFor="activIdInput" className="form-label">
-                  <span style={{ fontSize: "25px" }}>Activ ID:</span>
+                  <span style={{ fontSize: "25px" }}>Activ Incident ID:</span>
                 </label>
 
                 <input
                   id="activIdInput"
                   type="text"
                   className="form-control"
-                  placeholder="Activ Incident ID"
+                  placeholder="26-12345678"
                   value={activId}
                   onChange={(e) => setActivId(e.target.value)}
                   required
@@ -400,7 +400,7 @@ export default function CreateIncidentsPage() {
                   className="form-control text-start"
                   rows="3"
                   placeholder="Type of incident - Location - Date 
-Example: AFA Kiama 01 July 26"
+Example: AFA - Kiama - 01 July 26"
                   style={{ height: "100px", resize: "none" }}
                   value={incDesc}
                   onChange={(e) => setIncDesc(e.target.value)}
@@ -432,7 +432,7 @@ Example: AFA Kiama 01 July 26"
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Event ID</th>
+                      <th>Incident ID</th>
                       <th>Description</th>
                     </tr>
                   </thead>

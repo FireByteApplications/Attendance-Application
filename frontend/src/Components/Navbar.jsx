@@ -38,7 +38,7 @@ export default function Navbar() {
     "/admin/reports": "Reports",
     "/admin/rolereports": "Role Reports",
 
-    "/manageincidents": "Incident Management",
+    "/manageincidents": "Event Management",
     "/roles": "Role Assignment"
   };
 
