@@ -529,7 +529,7 @@ export function sanitizeEventNumberQuery(
   res: Response,
   next: NextFunction
 ) {
-  const eventNumber = validator.trim(String(req.body.eventNumber ?? ""));
+  const eventNumber = validator.trim(String(req.query.eventNumber ?? ""));
 
   if (!isValidEventNumber(eventNumber)) {
     res.status(400).json({
@@ -538,7 +538,7 @@ export function sanitizeEventNumberQuery(
     return;
   }
 
-  req.body.eventNumber = eventNumber;
+  req.query.eventNumber = eventNumber;
 
   next();
 }
