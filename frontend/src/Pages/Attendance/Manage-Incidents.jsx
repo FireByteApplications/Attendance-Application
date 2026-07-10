@@ -432,7 +432,7 @@ Example: AFA - Kiama - 01 July 26"
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Incident ID</th>
+                      <th>Event ID</th>
                       <th>Description</th>
                     </tr>
                   </thead>
