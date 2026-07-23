@@ -1118,6 +1118,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       eventNumber
     } = req.body;
 
+    console.log("Request Body: ", req.body)
+
     const eventDate = moment(epochTimestamp)
       .tz("Australia/Sydney")
       .format("YYYY-MM-DD");
@@ -1161,6 +1163,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       roles: [] as string[],
       epochTimestamp,
     };
+
+    console.log("Record to insert:", record)
 
     if (finalEventNumber) {
       record.eventNumber = finalEventNumber;
