@@ -1327,7 +1327,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const incidents = await eventsCollection
         .find(
           {
-            eventType: "incident",
+            eventType: "Incident-Call",
             eventDate: { $gte: thirtyDaysAgoString },
           },
           {
@@ -1370,7 +1370,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       const events = await eventsCollection
         .find(
           {
-            eventType: { $ne: "incident" },
+            eventType: { $ne: "Incident-Call" },
             eventDate: { $gte: thirtyDaysAgoString },
           },
           {
