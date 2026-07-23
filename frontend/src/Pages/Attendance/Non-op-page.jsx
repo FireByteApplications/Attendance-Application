@@ -45,12 +45,21 @@ export default function OperationalPage() {
 
     let username = sessionStorage.getItem("username") || "";
     username = username.replace(/\./g, " ");
+    function capitaliseName(value) {
+      return value
+        .trim()
+        .toLowerCase()
+        .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+    }
+
+    const formattedName = capitaliseName(username)
+
 
     const activitySelection = 'Non-Operational'
     try {
       let finalresponse;   
         const data = {
-        name: username,
+        name: formattedName,
         operational: activitySelection,
         activity,
         epochTimestamp: dateObj.getTime(),
