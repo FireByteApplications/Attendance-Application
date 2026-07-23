@@ -102,6 +102,15 @@ const fetchIncidents = async () => {
     let username = sessionStorage.getItem("username") || "";
     username = username.replace(/\./g, " ");
 
+    function capitaliseName(value) {
+      return value
+        .trim()
+        .toLowerCase()
+        .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+    }
+
+    const formattedName = capitaliseName(username)
+
     const activitySelection = 'Operational'
     let payloads;
 
@@ -120,7 +129,7 @@ const fetchIncidents = async () => {
     }
 
     const data = {
-      name: username,
+      name: formattedName,
       operational: activitySelection,
       activity,
       eventNumber: selectedEvent,

@@ -717,3 +717,53 @@ export function sanitizeRoleAssignmentPinInput(
 
   next();
 }
+
+export function sanitizeAddEventAttendanceBody(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const eventNumber = validator.trim(String(req.body.eventNumber ?? ""));
+  const usernames = req.body.usernames;
+
+  if (!isValidEventNumber(eventNumber)) {
+    res.status(400).json({ message: "Invalid event number." });
+    return;
+  }
+
+  if (!Array.isArray(usernames) || usernames.length === 0) {
+    res.status(400).json({ message: "At least one username is required." });
+    return;
+  }
+
+  if (usernames.length > 50) {
+    res.status(400).json({ message: "Too many usernames selected." });
+    return;
+  }
+
+  const sanitizedUsernames = Array.from(
+    new Set(
+      usernames.map((username) =>
+        validator.trim(String(username ?? "")).toLowerCase()
+      )
+    )
+  );
+
+  const usernameRegex = /^[a-z]+(?:[.-][a-z]+)*$/;
+
+  for (const username of sanitizedUsernames) {
+    if (
+      username.length < 3 ||
+      username.length > 50 ||
+      !usernameRegex.test(username)
+    ) {
+      res.status(400).json({ message: "Invalid username selected." });
+      return;
+    }
+  }
+
+  req.body.eventNumber = eventNumber;
+  req.body.usernames = sanitizedUsernames;
+
+  next();
+}

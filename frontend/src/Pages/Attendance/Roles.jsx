@@ -152,6 +152,12 @@ export default function RoleAssignment() {
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  const [addingAttendance, setAddingAttendance] = useState(false)
+  const [newAttendees, setNewAttendees] = useState([])
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeeSuggestions, setAttendeeSuggestions] = useState([]);
+  const [submittingNewAttendance, setSubmittingNewAttendance] = useState(false);
 
   const [message, setMessage] = useState(null);
 
@@ -187,58 +193,6 @@ export default function RoleAssignment() {
     checkStatus();
   }, []);
 
-  const handleUnlock = async (e) => {
-    e.preventDefault();
-
-    setMessage(null);
-
-    if (!/^\d{4}$/.test(pin)) {
-      setMessage({
-        type: "danger",
-        text: "PIN must be exactly 4 digits.",
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/unlock`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
-          },
-          body: JSON.stringify({ pin }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setMessage({
-          type: "danger",
-          text: result.message || "Invalid PIN.",
-        });
-        return;
-      }
-
-      setUnlocked(true);
-      setPin("");
-      setMessage({
-        type: "success",
-        text: result.message || "Role assignment unlocked.",
-      });
-    } catch (error) {
-      console.error("Failed to unlock role assignment:", error);
-
-      setMessage({
-        type: "danger",
-        text: "Failed to unlock role assignment.",
-      });
-    }
-  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -294,65 +248,75 @@ export default function RoleAssignment() {
     fetchEvents();
   }, [unlocked, selectedDate]);
 
+ useEffect(() => {
+  if (!unlocked || !selectedEventNumber) {
+    setAttendees([]);
+    setRoleDrafts({});
+    return;
+  }
+
+    loadAttendees(selectedEventNumber);
+  }, [unlocked, selectedEventNumber]);
+
   useEffect(() => {
-    const fetchAttendees = async () => {
-      if (!unlocked || !selectedEventNumber) {
-        setAttendees([]);
-        setRoleDrafts({});
+  if (!addingAttendance) {
+    setAttendeeSuggestions([]);
+    return;
+  }
+
+  const query = attendeeSearch.trim();
+
+  if (query.length < 2) {
+    setAttendeeSuggestions([]);
+    return;
+  }
+
+  const controller = new AbortController();
+
+  const timeoutId = setTimeout(async () => {
+    try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/usernameList?q=${encodeURIComponent(query)}`,
+        {
+          method: "GET",
+          credentials: "include",
+          signal: controller.signal,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setAttendeeSuggestions([]);
         return;
       }
 
-      setLoadingAttendees(true);
-      setMessage(null);
-      setAttendees([]);
-      setRoleDrafts({});
+      const usernames = Array.isArray(result) ? result : result.names || [];
 
-      try {
-        const response = await fetch(
-          `${apiurl}/api/attendance/roleAssignment/attendees?eventNumber=${encodeURIComponent(
-            selectedEventNumber
-          )}`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
+      const filteredUsernames = usernames.filter((username) => {
+        const normalized = normalizeUsername(username);
+
+        return (
+          !existingAttendanceUsernames.has(normalized) &&
+          !newAttendees.includes(normalized)
         );
+      });
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          setMessage({
-            type: "danger",
-            text: result.message || "Failed to load attendees.",
-          });
-          return;
-        }
-
-        const rows = Array.isArray(result) ? result : [];
-
-        setAttendees(rows);
-
-        const drafts = {};
-
-        for (const row of rows) {
-          drafts[row.recordId] = Array.isArray(row.roles) ? row.roles : [];
-        }
-
-        setRoleDrafts(drafts);
-      } catch (error) {
-        console.error("Failed to load attendees:", error);
-
-        setMessage({
-          type: "danger",
-          text: "Failed to load attendees.",
-        });
-      } finally {
-        setLoadingAttendees(false);
+      setAttendeeSuggestions(filteredUsernames);
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Failed to search usernames:", error);
       }
-    };
 
-    fetchAttendees();
-  }, [unlocked, selectedEventNumber]);
+      setAttendeeSuggestions([]);
+    }
+  }, 300);
+
+  return () => {
+    clearTimeout(timeoutId);
+    controller.abort();
+  };
+  }, [attendeeSearch, addingAttendance, attendees, newAttendees]);
 
   const handleRoleToggle = (recordId, role) => {
     setRoleDrafts((current) => {
@@ -367,6 +331,146 @@ export default function RoleAssignment() {
         [recordId]: updatedRoles,
       };
     });
+  };
+
+  const normalizeUsername = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ".");
+
+  const existingAttendanceUsernames = new Set(
+    attendees.map((attendee) => normalizeUsername(attendee.name))
+  );
+
+  const sanitizeUsernameSearch = (input) =>
+    input
+      .split("")
+      .filter((char) => /^[a-zA-Z.-]$/.test(char))
+      .join("");
+
+  const selectedEvent = events.find(
+    (event) => event.eventNumber === selectedEventNumber
+  );
+
+  const handleNewAttendeeToggle = (username) => {
+    const normalized = normalizeUsername(username);
+
+    setNewAttendees((current) =>
+      current.includes(normalized)
+        ? current.filter((existingUsername) => existingUsername !== normalized)
+        : [...current, normalized]
+    );
+  };
+  
+
+  const loadAttendees = async (eventNumber = selectedEventNumber) => {
+  if (!unlocked || !eventNumber) {
+    setAttendees([]);
+    setRoleDrafts({});
+    return;
+  }
+
+  setLoadingAttendees(true);
+  setMessage(null);
+  setAttendees([]);
+  setRoleDrafts({});
+
+  try {
+    const response = await fetch(
+      `${apiurl}/api/attendance/roleAssignment/attendees?eventNumber=${encodeURIComponent(
+        eventNumber
+      )}`,
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      setMessage({
+        type: "danger",
+        text: result.message || "Failed to load attendees.",
+      });
+      return;
+    }
+
+    const rows = Array.isArray(result) ? result : [];
+
+    setAttendees(rows);
+
+    const drafts = {};
+
+    for (const row of rows) {
+      drafts[row.recordId] = Array.isArray(row.roles) ? row.roles : [];
+    }
+
+    setRoleDrafts(drafts);
+  } catch (error) {
+    console.error("Failed to load attendees:", error);
+
+    setMessage({
+      type: "danger",
+      text: "Failed to load attendees.",
+    });
+  } finally {
+    setLoadingAttendees(false);
+  }
+  };
+  
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+
+    setMessage(null);
+
+    if (!/^\d{4}$/.test(pin)) {
+      setMessage({
+        type: "danger",
+        text: "PIN must be exactly 4 digits.",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/roleAssignment/unlock`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+          },
+          body: JSON.stringify({ pin }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setMessage({
+          type: "danger",
+          text: result.message || "Invalid PIN.",
+        });
+        return;
+      }
+
+      setUnlocked(true);
+      setPin("");
+      setMessage({
+        type: "success",
+        text: result.message || "Role assignment unlocked.",
+      });
+    } catch (error) {
+      console.error("Failed to unlock role assignment:", error);
+
+      setMessage({
+        type: "danger",
+        text: "Failed to unlock role assignment.",
+      });
+    }
   };
 
   const handleSaveRoles = async () => {
@@ -437,9 +541,75 @@ export default function RoleAssignment() {
     }
   };
 
-  const selectedEvent = events.find(
-    (event) => event.eventNumber === selectedEventNumber
-  );
+  const handleAddAttendanceSubmit = async () => {
+    if (!selectedEventNumber || !selectedEvent) {
+      setMessage({
+        type: "danger",
+        text: "Please select an event first.",
+      });
+      return;
+    }
+
+    if (newAttendees.length === 0) {
+      setMessage({
+        type: "danger",
+        text: "Select at least one member to add.",
+      });
+      return;
+    }
+
+    setSubmittingNewAttendance(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/roleAssignment/addAttendance`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+          },
+          body: JSON.stringify({
+            eventNumber: selectedEventNumber,
+            usernames: newAttendees,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setMessage({
+          type: "danger",
+          text: result.message || "Failed to add attendance.",
+        });
+        return;
+      }
+
+      setMessage({
+        type: "success",
+        text: result.message || "Attendance added successfully.",
+      });
+
+      setNewAttendees([]);
+      setAttendeeSearch("");
+      setAttendeeSuggestions([]);
+      setAddingAttendance(false);
+
+      await loadAttendees(selectedEventNumber);
+    } catch (error) {
+      console.error("Failed to add attendance:", error);
+
+      setMessage({
+        type: "danger",
+        text: "Failed to add attendance.",
+      });
+    } finally {
+      setSubmittingNewAttendance(false);
+    }
+  };
 
   if (loadingStatus) {
     return (
@@ -449,6 +619,91 @@ export default function RoleAssignment() {
     );
   }
 
+  const renderAddAttendancePanel = () => (
+    <div className="border rounded p-3 mt-3 bg-light">
+      <label className="form-label">Search members to add</label>
+
+      <input
+        type="text"
+        className="form-control mb-2"
+        placeholder="Search username"
+        value={attendeeSearch}
+        onChange={(e) =>
+          setAttendeeSearch(sanitizeUsernameSearch(e.target.value))
+        }
+        autoComplete="off"
+      />
+
+      {attendeeSuggestions.length > 0 && (
+        <div className="border rounded bg-white mb-3">
+          {attendeeSuggestions.map((username) => {
+            const normalized = normalizeUsername(username);
+            const checked = newAttendees.includes(normalized);
+
+            return (
+              <label
+                key={normalized}
+                className="d-flex align-items-center gap-2 px-3 py-2 border-bottom"
+                style={{ cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  className="form-check-input m-0"
+                  checked={checked}
+                  onChange={() => handleNewAttendeeToggle(username)}
+                />
+
+                <span>{username}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {newAttendees.length > 0 && (
+        <div className="mb-3">
+          <div className="fw-semibold mb-2">Selected members</div>
+
+          <div className="d-flex flex-wrap gap-2">
+            {newAttendees.map((username) => (
+              <button
+                key={username}
+                type="button"
+                className="btn btn-sm btn-outline-primary"
+                onClick={() => handleNewAttendeeToggle(username)}
+              >
+                {username} ×
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="d-flex gap-2">
+        <button
+          type="button"
+          className="btn btn-success btn-sm"
+          onClick={handleAddAttendanceSubmit}
+          disabled={submittingNewAttendance || newAttendees.length === 0}
+        >
+          {submittingNewAttendance ? "Adding..." : "Submit attendance"}
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-outline-secondary btn-sm"
+          onClick={() => {
+            setAddingAttendance(false);
+            setNewAttendees([]);
+            setAttendeeSearch("");
+            setAttendeeSuggestions([]);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
   return (
     <div className="container mt-5">
       <h1 className="mb-4">Role Assignment</h1>
@@ -556,9 +811,24 @@ export default function RoleAssignment() {
               {loadingAttendees ? (
                 <p>Loading attendees...</p>
               ) : attendees.length === 0 ? (
+                <div>
                 <p className="mb-0">
                   No attendance records found for this event.
                 </p>
+                  <div className="d-flex">
+                    <div className="p-2">
+                      <button
+                        type="button"
+                        className="btn btn-success btn-sm"
+                        onClick={() => setAddingAttendance((current) => !current)}
+                      >
+                        {addingAttendance ? "Close add attendance" : "Add attendance"}
+                      </button>
+
+                      {addingAttendance && renderAddAttendancePanel()}
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="table-responsive">
                   <table className="table table-bordered align-middle">
@@ -623,6 +893,19 @@ export default function RoleAssignment() {
                       })}
                     </tbody>
                   </table>
+                  <div className="d-flex flex-row-reverse">
+                    <div className="p-2">
+                      <button
+                        type="button"
+                        className="btn btn-success btn-sm"
+                        onClick={() => setAddingAttendance((current) => !current)}
+                      >
+                        {addingAttendance ? "Close add attendance" : "Add attendance"}
+                      </button>
+
+                      {addingAttendance && renderAddAttendancePanel()}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

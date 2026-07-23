@@ -238,8 +238,23 @@ async function sendXlsxResponse(
   }
 
   //Generate CSRF Tokens
-  app.get('/csrf-token', limit.csrfTokenLimiter, (req, res) => {
-    res.json({ csrfToken: (req as any).csrfToken() });
+  app.get("/csrf-token", limit.csrfTokenLimiter, (req, res) => {
+    const csrfToken = (req as any).csrfToken();
+
+    req.session.save((error) => {
+      if (error) {
+        console.error("Failed to save CSRF token:", error);
+
+        res.status(500).json({
+          message: "Failed to create CSRF token.",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        csrfToken,
+      });
+    });
   });
   // Generates OAuth2 login URL with PKCE challenge
   const login: RequestHandler = (req, res) => {
@@ -396,7 +411,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.get('/auth/logout', limit.authLimiter, LogOut)
 
-
   const getUsersList: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -456,8 +470,16 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     return;
     }
 
-    const name = `${firstName} ${lastName}`;
-    const username = `${firstName}.${lastName}`;
+    function capitaliseNamePart(value: string) {
+      return value
+        .trim()
+        .toLowerCase()
+        .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+    }
+    const formattedFirstName = capitaliseNamePart(firstName);
+    const formattedLastName = capitaliseNamePart(lastName);
+    const name = `${formattedFirstName} ${formattedLastName}`;
+    const username = `${firstName}.${lastName}`.toLowerCase();
 
     try {
       const result = await usersCollection.insertOne({
@@ -510,9 +532,18 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   const { oldname, name, oldfzNumber, fzNumber, memberStatus, memberClassification, memberType } = req.body;
       const [firstname, ...lastnameArr] = name.split(' ');
       const lastname = lastnameArr.join(' ');
+
+      function capitaliseNamePart(value: string) {
+        return value
+          .trim()
+          .toLowerCase()
+          .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+      }
+      const formattedFirstName = capitaliseNamePart(firstname)
+      const formattedLastName = capitaliseNamePart(lastname)
       const updatedUser = {
-        name: name,
-        username: `${firstname}.${lastname}`,
+        name: `${formattedFirstName} ${formattedLastName}`,
+        username: `${firstname}.${lastname}`.toLowerCase(),
         id: fzNumber,
         member_status: memberStatus,
         membership_classification: memberClassification,
@@ -1066,7 +1097,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   return eventRequiredActivities.includes(activity);
   }
 
-  if (req.session.validUsername !== dotName) {
+  console.log("ValidUsername: ", req.session.validUsername)
+  console.log("dotname", dotName)
+
+  if (req.session.validUsername !== dotName.toLowerCase()) {
     res.status(403).json({ message: 'Username not validated in this session' });
     return;
   }
@@ -1210,7 +1244,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       eventNumber: activID,
       eventDate: date,
       description: incidentDescription,
-      eventType: "incident",
+      eventType: "Incident-Call",
       createdAtEpoch: Date.now()
     }
     try {
@@ -1562,6 +1596,185 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.patch("/api/attendance/roleAssignment/updateRoles", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeUpdateEventRolesBody, updateEventRoles);
+
+  const nonOperationalActivities = new Set([
+  "Meeting",
+  "Community-Engagement",
+  "Other-Non-operational",
+  ]);
+
+  const operationalActivities = new Set([
+    "Incident-Call",
+    "Strike-Team",
+    "Deployment",
+    "Hazard-Reduction",
+    "Pile-Burn",
+    "Training",
+    "Maintenance",
+    "BA-Checks",
+    "Chainsaw-Checks",
+    "Other-operational",
+  ]);
+
+function getOperationalStatusForActivity(activity: string) {
+  if (operationalActivities.has(activity)) {
+    return "Operational";
+  }
+
+  if (nonOperationalActivities.has(activity)) {
+    return "Non-operational";
+  }
+
+  return null;
+}
+
+  const addEventAttendance: RequestHandler = async (req, res) => {
+    try {
+      const eventNumber = String(req.body.eventNumber);
+      const usernames = req.body.usernames as string[];
+      console.log("Event Number: ", eventNumber)
+      console.log("Users: ", usernames)
+
+      const event = await eventsCollection.findOne(
+        { eventNumber },
+        {
+          projection: {
+            _id: 0,
+            eventNumber: 1,
+            eventDate: 1,
+            eventType: 1,
+            description: 1,
+          },
+        }
+      );
+      console.log("Event:", event)
+
+      if (!event) {
+        return res.status(404).json({
+          message: "Event not found.",
+        });
+      }
+
+      const activity = String(event.eventType ?? "");
+      const operational = getOperationalStatusForActivity(activity);
+      console.log("Operational: ", operational)
+      if (!operational) {
+        return res.status(400).json({
+          message: "Selected event has an invalid activity type.",
+        });
+      }
+
+      const users = await usersCollection
+        .find(
+          {
+            username: {
+              $in: usernames,
+            },
+          },
+          {
+            projection: {
+              _id: 0,
+              name: 1,
+              username: 1,
+            },
+          }
+        )
+        .toArray();
+        console.log("Users Search: ", users)
+
+      const userByUsername = new Map(
+        users.map((user: any) => [
+          String(user.username).toLowerCase(),
+          user,
+        ])
+      );
+
+      const missingUsernames = usernames.filter(
+        (username) => !userByUsername.has(String(username).toLowerCase())
+      );
+
+      if (missingUsernames.length > 0) {
+        return res.status(400).json({
+          message: "One or more selected usernames do not exist.",
+        });
+      }
+
+      const selectedUsers = users.map((user: any) => ({
+        username: String(user.username ?? "").toLowerCase(),
+        name: String(user.name ?? "").trim(),
+      }));
+
+      if (selectedUsers.some((user) => !user.username || !user.name)) {
+        return res.status(400).json({
+          message: "One or more selected users have incomplete member details.",
+        });
+      }
+
+      const existingRecords = await recordsCollection
+        .find(
+          {
+            eventNumber,
+            name: {
+              $in: selectedUsers.map((user) => user.name),
+            },
+          },
+          {
+            projection: {
+              _id: 0,
+              name: 1,
+            },
+          }
+        )
+        .toArray();
+
+      const existingNames = new Set(
+        existingRecords.map((record: any) => String(record.name))
+      );
+
+      const epochTimestamp = moment
+        .tz(String(event.eventDate), "YYYY-MM-DD", "Australia/Sydney")
+        .valueOf();
+
+      if (!Number.isFinite(epochTimestamp)) {
+        return res.status(400).json({
+          message: "Selected event has an invalid date.",
+        });
+      }
+
+      const recordsToInsert = selectedUsers
+        .filter((user) => !existingNames.has(user.name))
+        .map((user) => ({
+          name: user.name,
+          operational,
+          activity,
+          details: {},
+          roles: [] as string[],
+          eventNumber: event.eventNumber,
+          epochTimestamp,
+        }));
+
+      if (recordsToInsert.length === 0) {
+        return res.status(409).json({
+          message: "Selected members are already recorded for this event.",
+        });
+      }
+
+      const result = await recordsCollection.insertMany(recordsToInsert);
+
+      return res.status(201).json({
+        message: `${result.insertedCount} attendance record(s) added.`,
+        insertedCount: result.insertedCount,
+        skippedCount: selectedUsers.length - recordsToInsert.length,
+      });
+    } catch (error) {
+      console.error("Error adding event attendance:", error);
+
+      return res.status(500).json({
+        message: "Failed to add attendance.",
+      });
+    }
+  };
+  app.post("/api/attendance/roleAssignment/addAttendance", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeAddEventAttendanceBody, addEventAttendance);
 
   const roleReportRun: RequestHandler = async (req, res) => {
     try {
