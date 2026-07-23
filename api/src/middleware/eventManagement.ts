@@ -74,7 +74,7 @@ export function createEventService({
       }
 
       const incidentEvent = await eventsCollection.findOne({
-        eventType: "incident",
+        eventType: "Incident-Call",
         eventNumber
       });
 
