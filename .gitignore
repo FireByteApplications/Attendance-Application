@@ -3,6 +3,6 @@
 .deployment
 dist
 node_modules
-.dockerignore
-Dockerfile.dev
-docker-compose.yml
+*docker*
+mongo_init
+mongo_init/*
