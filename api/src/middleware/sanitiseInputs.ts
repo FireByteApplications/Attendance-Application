@@ -131,9 +131,14 @@ function isValidEventDate(date: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
-export function sanitizeAttendanceInput(req: Request, res: Response, next: NextFunction) {
+export function sanitizeAttendanceInput(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   const {
     name,
+    names,
     operational,
     activity,
     epochTimestamp,
@@ -142,49 +147,119 @@ export function sanitizeAttendanceInput(req: Request, res: Response, next: NextF
     deploymentType,
     deploymentLocation,
     otherType,
-    eventNumber
+    eventNumber,
   } = req.body;
 
+  console.log("Pre sanitised", req.body)
+
+  const rawNames: unknown[] = Array.isArray(names) ? names : [name];
+
+  const sanitizedNames: string[] = Array.from(
+    new Set(
+      rawNames
+        .map((submittedName: unknown) =>
+          validator.trim(String(submittedName ?? ""))
+        )
+        .filter((submittedName: string) => Boolean(submittedName))
+    )
+  );
+
+  if (sanitizedNames.length === 0) {
+    res.status(400).json({ message: "At least one name is required." });
+    return;
+  }
+
+  if (sanitizedNames.length > 20) {
+    res.status(400).json({ message: "Too many names submitted." });
+    return;
+  }
+
+  const nameRegex = /^[a-zA-Z-'\s]{1,50}$/;
+
+  const invalidName = sanitizedNames.find(
+    (submittedName: string) => !nameRegex.test(submittedName)
+  );
+
+  if (invalidName) {
+    res.status(400).json({ message: "Invalid characters in field: names" });
+    return;
+  }
+
   const sanitized = {
-    name: validator.trim(name || ''),
-    operational: validator.trim(operational || ''),
-    activity: validator.trim(activity || ''),
-    baType: validator.trim(baType || ''),
-    chainsawType: validator.trim(chainsawType || ''),
-    deploymentType: validator.trim(deploymentType || ''),
-    deploymentLocation: validator.trim(deploymentLocation || ''),
-    otherType: validator.trim(otherType || ''),
-    eventNumber : validator.trim(String(eventNumber ?? ""))
+    name: sanitizedNames[0],
+    names: sanitizedNames,
+    operational: validator.trim(String(operational ?? "")),
+    activity: validator.trim(String(activity ?? "")),
+    baType: validator.trim(String(baType ?? "")),
+    chainsawType: validator.trim(String(chainsawType ?? "")),
+    deploymentType: validator.trim(String(deploymentType ?? "")),
+    deploymentLocation: validator.trim(String(deploymentLocation ?? "")),
+    otherType: validator.trim(String(otherType ?? "")),
+    eventNumber: validator.trim(String(eventNumber ?? "")),
   };
 
   const validators = [
-    { value: sanitized.name, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'name' },
-    { value: sanitized.operational, pattern: /^(Non-Operational)?(Operational)?$/, field: 'operational' },
-    { value: sanitized.activity, pattern: /^[a-zA-Z\s-]{1,21}$/, field: 'activity' },
-    { value: sanitized.baType, pattern: /^(Cat\s1)?(Pumper)?$/, field: 'baType' },
-    { value: sanitized.chainsawType, pattern: /^(Cat\s1)?(Pumper)?(Cat\s9)?$/, field: 'chainsawType' },
-    { value: sanitized.deploymentType, pattern: /^(Bushfire)?(Flood)?$/, field: 'deploymentType' },
-    { value: sanitized.deploymentLocation, pattern: /^(Local)?(Out\sof\sarea)?$/, field: 'deploymentLocation' },
-    { value: sanitized.otherType, pattern: /^[a-zA-Z0-9\s\.,\-\']{1,50}$/, field: 'otherType'},
-    { value: sanitized.eventNumber, pattern: /^\d{2}-\d{1,8}$/, field: 'eventNumber'}
-  ]
+    {
+      value: sanitized.operational,
+      pattern: /^(Operational|Non-Operational|Non-operational)$/,
+      field: "operational",
+    },
+    {
+      value: sanitized.activity,
+      pattern: /^[a-zA-Z\s-]{1,30}$/,
+      field: "activity",
+    },
+    {
+      value: sanitized.baType,
+      pattern: /^(Cat\s1|Pumper|All\sVehicles)$/,
+      field: "baType",
+    },
+    {
+      value: sanitized.chainsawType,
+      pattern: /^(Cat\s1|Pumper|Cat\s9|All\sVehicles)$/,
+      field: "chainsawType",
+    },
+    {
+      value: sanitized.deploymentType,
+      pattern: /^(Bushfire|Flood)$/,
+      field: "deploymentType",
+    },
+    {
+      value: sanitized.deploymentLocation,
+      pattern: /^(Local|Out\sof\sarea)$/,
+      field: "deploymentLocation",
+    },
+    {
+      value: sanitized.otherType,
+      pattern: /^[a-zA-Z0-9\s\.,\-\']{1,50}$/,
+      field: "otherType",
+    },
+    {
+      value: sanitized.eventNumber,
+      pattern: /^(\d{2}-\d{1,8}|EVT-[A-Za-z0-9-]+)$/,
+      field: "eventNumber",
+    },
+  ];
 
   for (const { value, pattern, field } of validators) {
     if (value && !pattern.test(value)) {
-      res.status(400).json({ message: `Invalid characters in field: ${field}` });
+      res.status(400).json({
+        message: `Invalid characters in field: ${field}`,
+      });
       return;
     }
   }
 
   const epochTimestampNumber = Number(epochTimestamp);
+
   if (!Number.isInteger(epochTimestampNumber) || epochTimestampNumber <= 0) {
-    res.status(400).json({ message: 'Invalid epochTimestamp' });
+    res.status(400).json({ message: "Invalid epochTimestamp" });
     return;
   }
 
   req.body = {
     ...sanitized,
-    epochTimestamp: epochTimestampNumber
+    epochTimestamp: epochTimestampNumber,
   };
 
   next();
@@ -644,25 +719,65 @@ export function sanitizeCheckUsernameInput(
   res: Response,
   next: NextFunction
 ) {
-  const username = validator.trim(String(req.body.username ?? ""));
+  const rawUsernames: unknown[] = Array.isArray(req.body.usernames)
+    ? req.body.usernames
+    : [req.body.username];
 
-  const usernameRegex = /^[A-Za-z]+(?:\.[A-Za-z]+)?(?:-[A-Za-z]+)?$/;
+  const usernames = Array.from(
+    new Set(
+      rawUsernames
+        .map((username: unknown) =>
+          validator.trim(String(username ?? "")).toLowerCase()
+        )
+        .filter((username: string) => Boolean(username))
+    )
+  );
 
-  if (
-    username.length < 3 ||
-    username.length > 40 ||
-    !usernameRegex.test(username)
-  ) {
+  const usernameRegex =
+    /^[a-z]+(?:-[a-z]+)*(?:\.[a-z]+(?:-[a-z]+)*)?$/;
+
+  if (usernames.length === 0) {
     req.session.validUsername = undefined;
+    req.session.validUsernames = undefined;
 
     res.status(400).json({
       ok: false,
-      message: "Invalid username",
+      message: "At least one username is required.",
     });
     return;
   }
 
-  req.body.username = username;
+  if (usernames.length > 20) {
+    req.session.validUsername = undefined;
+    req.session.validUsernames = undefined;
+
+    res.status(400).json({
+      ok: false,
+      message: "Too many usernames selected.",
+    });
+    return;
+  }
+
+  const invalidUsername = usernames.find(
+    (username: string) =>
+      username.length < 3 ||
+      username.length > 40 ||
+      !usernameRegex.test(username)
+  );
+
+  if (invalidUsername) {
+    req.session.validUsername = undefined;
+    req.session.validUsernames = undefined;
+
+    res.status(400).json({
+      ok: false,
+      message: "Invalid username.",
+    });
+    return;
+  }
+
+  req.body.username = usernames[0];
+  req.body.usernames = usernames;
 
   next();
 }

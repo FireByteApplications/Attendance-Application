@@ -35,7 +35,7 @@ export default function Navbar() {
     "/admin/dashboard": "Admin Dashboard",
     "/admin/add-user": "Add User",
     "/admin/users": "Manage Users",
-    "/admin/reports": "Reports",
+    "/admin/reports": "Attendance Reports",
     "/admin/rolereports": "Role Reports",
 
     "/manageincidents": "Event Management",

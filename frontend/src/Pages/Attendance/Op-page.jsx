@@ -1,9 +1,7 @@
-import {useState, useEffect, useRef} from "react";
+import {useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
-import styles from "../../styles/Attendance.module.css";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useCsrfToken} from "../../Components/csrfHelper.jsx"
-import CheckboxContainer from '../../Components/checkboxContainer.jsx'
 import { validateOperationalAttendanceData } from "../../Utils/formValidation.js";
 
 const activities = [
@@ -19,11 +17,16 @@ const activities = [
   "Other-operational",
 ];
 
-
-
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
-
+const pageShellStyle = {
+  backgroundImage: 'url("/assets/background.jpg")',
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundRepeat: "no-repeat",
+  minHeight: "100vh",
+  width: "100%",
+};
 
 export default function OperationalPage() {
   const csrfToken = useCsrfToken(apiurl);
@@ -37,7 +40,6 @@ export default function OperationalPage() {
   const [deploymentType, setDeploymentType] = useState("");
   const [deploymentLocation, setDeploymentLocation] = useState("");
   const [otherType, setOtherType] = useState("")
-  const [validateIncidentID, setIncidentId] = useState("")
   const [submitMessage, setSubmitMessage] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,29 +57,29 @@ export default function OperationalPage() {
   const navigate = useNavigate();
 
 
-const fetchIncidents = async () => {
-  try {
-    const response = await fetch(`${apiurl}/api/attendance/listIncidents`, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
-      },
-    });
+  const fetchIncidents = async () => {
+    try {
+      const response = await fetch(`${apiurl}/api/attendance/listIncidents`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+        },
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (!response.ok) {
-      console.error(result.message || "Failed to fetch Incidents");
-      return;
+      if (!response.ok) {
+        console.error(result.message || "Failed to fetch Incidents");
+        return;
+      }
+
+      setIncidents(result);
+    } catch (error) {
+      console.error("Error fetching Incidents:", error);
     }
-
-    setIncidents(result);
-  } catch (error) {
-    console.error("Error fetching Incidents:", error);
-  }
-};
+  };
 
   const handleSelect = (activity) => {
     const newValue = selectedActivity === activity ? "" : activity;
@@ -92,55 +94,40 @@ const fetchIncidents = async () => {
   const handleSubmit = async () => {
     const activity = sessionStorage.getItem("activity");
     if (!activity) {
-      alert("Please select an option before submitting");
+      setSubmitStatus("error");
+      setSubmitMessage("Please select an option before submitting");
       return;
     }
 
     const dateObj = date ? new Date(date) : new Date();
     if (date) dateObj.setHours(0, 0, 0, 0);
 
-    let username = sessionStorage.getItem("username") || "";
-    username = username.replace(/\./g, " ");
+    const formattedNames = getSelectedAttendanceNames();
 
-    function capitaliseName(value) {
-      return value
-        .trim()
-        .toLowerCase()
-        .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+    if (formattedNames.length === 0) {
+      setSubmitStatus("error");
+      setSubmitMessage("No usernames selected. Please log in again.");
+      sessionStorage.clear();
+      navigate("/attendance");
+      return;
     }
-
-    const formattedName = capitaliseName(username)
 
     const activitySelection = 'Operational'
-    let payloads;
-
-    if (activity === "BA-Checks") {
-      payloads = 
-        baType === "All Vehicles"
-          ? ["Cat 1", "Pumper"]
-          : [baType]
-    } else if (activity === "Chainsaw-Checks") {
-        payloads =
-          chainsawType === "All Vehicles"
-            ? ["Cat 1", "Pumper", "Cat 9"]
-            :[chainsawType]
-    } else{
-      payloads = [null]
-    }
 
     const data = {
-      name: formattedName,
+      name: formattedNames[0], // keeps existing validation compatible
+      names: formattedNames,  // new multi-name submit
       operational: activitySelection,
       activity,
       eventNumber: selectedEvent,
       epochTimestamp: dateObj.getTime(),
-     ...(activity === "Deployment" && {
-      deploymentType,
-      deploymentLocation,
-    }),
-    ...(activity === "BA-Checks" && { baType }),
-    ...(activity === "Chainsaw-Checks" && { chainsawType }),
-    ...(activity === "Other-operational" && { otherType })
+      ...(activity === "Deployment" && {
+        deploymentType,
+        deploymentLocation,
+      }),
+      ...(activity === "BA-Checks" && { baType }),
+      ...(activity === "Chainsaw-Checks" && { chainsawType }),
+      ...(activity === "Other-operational" && { otherType }),
     };
     const errors = validateOperationalAttendanceData(data)
     if(errors.length !== 0) {
@@ -187,45 +174,82 @@ const fetchIncidents = async () => {
     }
   };
 
+    function capitaliseName(value) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
+  function getSelectedAttendanceNames() {
+    const storedUsernames = JSON.parse(
+      sessionStorage.getItem("usernames") || "[]"
+    );
+
+    const usernames = Array.isArray(storedUsernames)
+      ? storedUsernames
+      : [];
+
+    if (usernames.length === 0) {
+      const fallbackUsername = sessionStorage.getItem("username") || "";
+
+      if (!fallbackUsername) {
+        return [];
+      }
+
+      return [
+        capitaliseName(fallbackUsername.replace(/\./g, " "))
+      ];
+    }
+
+    return usernames.map((username) =>
+      capitaliseName(String(username).replace(/\./g, " "))
+    );
+  }
+
+  const selectedNames = getSelectedAttendanceNames();
+
   useEffect(() => {
     fetchIncidents();
   }, []);
 
+  useEffect(() => {
+    if (!submitMessage) return;
+
+    const timerId = window.setTimeout(() => {
+      setSubmitMessage(null);
+      setSubmitStatus(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timerId);
+  }, [submitMessage, submitStatus]);
+
   useTitle('Operational Attendance');
 
   return (
-    <div className={styles.attendanceBg}>
+    <div className="w-100 py-4" style={pageShellStyle}>
       <div className="container py-4">
         {submitMessage && (
-        <div
-          className={`alert ${
-            submitStatus === "success" ? "alert-success" : "alert-danger"
-          } alert-dismissible fade show mx-auto`}
-          role="alert"
-          style={{ maxWidth: "600px" }}
-        >
-          {Array.isArray(submitMessage) ? (
-            <ul className="mb-0">
-              {submitMessage.map((message, index) => (
-                <li key={index}>{message}</li>
-              ))}
-            </ul>
-          ) : (
-            submitMessage
-          )}
-
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => {
-              setSubmitMessage(null);
-              setSubmitStatus(null);
-            }}
-            aria-label="Close"
-          ></button>
-        </div>
+          <div
+            className={`alert ${
+              submitStatus === "success" ? "alert-success" : "alert-danger"
+            } fade show position-fixed top-0 start-50 translate-middle-x mt-3`}
+            role="alert"
+            style={{ maxWidth: "600px", width: "90%", zIndex: 2000 }}
+          >
+            {Array.isArray(submitMessage) ? (
+              <ul className="mb-0">
+                {submitMessage.map((message, index) => (
+                  <li key={index}>{message}</li>
+                ))}
+              </ul>
+            ) : (
+              submitMessage
+            )}
+          </div>
         )}
-        <h1 className='text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm'>Select Operational Activity</h1>
+
+        <h1 className="text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm mx-auto">Select Operational Activity</h1>
         <div className="d-flex flex-wrap justify-content-center gap-2 my-4">
           {activities.map((activity) => (
             <button
@@ -239,10 +263,8 @@ const fetchIncidents = async () => {
           ))}
         </div>
         {selectedActivity === "Deployment" && (
-        <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+        <div className="text-center border border-2 rounded-3 bg-secondary bg-opacity-80 text-dark fw-semibold shadow-sm mx-auto p-3"
             style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
               maxWidth: "400px",
               width: "100%",
               marginBottom: "1rem"
@@ -271,13 +293,11 @@ const fetchIncidents = async () => {
         </div>
         )}
         {selectedActivity === "BA-Checks" && (
-          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          <div className="text-center border border-2 rounded-3 bg-secondary bg-opacity-80 text-dark fw-semibold shadow-sm mx-auto p-3"
           style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}>
             <label className="form-label fw-bold d-block">Select BA Type:</label>
             <select
@@ -293,13 +313,11 @@ const fetchIncidents = async () => {
           </div>
         )}
         {selectedActivity === "Chainsaw-Checks" && (
-          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          <div className="text-center border border-2 rounded-3 bg-secondary bg-opacity-80 text-dark fw-semibold shadow-sm mx-auto p-3"
           style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}>
             <label className="form-label fw-bold d-block">Select Chainsaw Type:</label>
             <select
@@ -316,16 +334,14 @@ const fetchIncidents = async () => {
           </div>
         )}
         {selectedActivity === "Other-operational" && (
-          <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+          <div className="text-center border border-2 rounded-3 bg-secondary bg-opacity-80 text-dark fw-semibold shadow-sm mx-auto p-3"
           style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
               maxWidth: "400px",
               width: "100%",
               marginBottom: "1rem"
             }}>
             <label className="form-label fw-bold d-block">Other Operational Activity:</label>
-            <input placeholder="Eg Permits"
+            <input className="form-control mx-auto" placeholder="Eg Permits"
                   value={otherType}
                   onChange={(e) => setOtherType(e.target.value)}>
             </input>
@@ -377,10 +393,8 @@ const fetchIncidents = async () => {
             </div>
           </div>
         )}
-        <div className="text-center border border-2 rounded-3 bg-secondary text-black fw-semibold shadow-sm mx-auto"
+        <div className="text-center border border-2 rounded-3 bg-secondary bg-opacity-80 text-black fw-semibold shadow-sm mx-auto p-3"
             style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.75rem",
               maxWidth: "400px",
               width: "100%",
               marginBottom: "1rem"
@@ -395,6 +409,19 @@ const fetchIncidents = async () => {
             onChange={(e) => setDate(e.target.value)}
           />
         </div>
+        {selectedNames.length > 0 && (
+            <div className="mx-auto text-center bg-secondary bg-opacity-80 text-white my-3 px-3 py-3 border border-2 border-white rounded-3" style={{ maxWidth: "420px" }}>
+              <div className="fw-semibold pb-2">Submitting attendance for:</div>
+
+              <div className="d-flex flex-wrap justify-content-center gap-2 mt-2 mb-2">
+                {selectedNames.map((name) => (
+                  <span key={name} className="badge text-bg-light border">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+        )}
         <div className="text-center">
           <button 
             onClick={handleSubmit} 

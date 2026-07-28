@@ -161,11 +161,25 @@ export default function RoleAssignment() {
 
   const [message, setMessage] = useState(null);
 
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+  };
+
   useEffect(() => {
     if (csrfToken) {
       sessionStorage.setItem("csrf", csrfToken);
     }
   }, [csrfToken]);
+
+  useEffect(() => {
+    if (!message) return;
+
+    const timerId = window.setTimeout(() => {
+      setMessage(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timerId);
+  }, [message]);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -225,10 +239,7 @@ export default function RoleAssignment() {
         const result = await response.json();
 
         if (!response.ok) {
-          setMessage({
-            type: "danger",
-            text: result.message || "Failed to load events.",
-          });
+          showMessage("danger", result.message || "Failed to load events.");
           return;
         }
 
@@ -236,10 +247,7 @@ export default function RoleAssignment() {
       } catch (error) {
         console.error("Failed to load events:", error);
 
-        setMessage({
-          type: "danger",
-          text: "Failed to load events.",
-        });
+        showMessage("danger", "Failed to load events.");
       } finally {
         setLoadingEvents(false);
       }
@@ -390,10 +398,7 @@ export default function RoleAssignment() {
     const result = await response.json();
 
     if (!response.ok) {
-      setMessage({
-        type: "danger",
-        text: result.message || "Failed to load attendees.",
-      });
+      showMessage("danger", result.message || "Failed to load attendees.");
       return;
     }
 
@@ -411,10 +416,7 @@ export default function RoleAssignment() {
   } catch (error) {
     console.error("Failed to load attendees:", error);
 
-    setMessage({
-      type: "danger",
-      text: "Failed to load attendees.",
-    });
+    showMessage("danger", "Failed to load attendees.");
   } finally {
     setLoadingAttendees(false);
   }
@@ -426,10 +428,7 @@ export default function RoleAssignment() {
     setMessage(null);
 
     if (!/^\d{4}$/.test(pin)) {
-      setMessage({
-        type: "danger",
-        text: "PIN must be exactly 4 digits.",
-      });
+      showMessage("danger", "PIN must be exactly 4 digits.");
       return;
     }
 
@@ -450,35 +449,23 @@ export default function RoleAssignment() {
       const result = await response.json();
 
       if (!response.ok) {
-        setMessage({
-          type: "danger",
-          text: result.message || "Invalid PIN.",
-        });
+        showMessage("danger", result.message || "Invalid PIN.");
         return;
       }
 
       setUnlocked(true);
       setPin("");
-      setMessage({
-        type: "success",
-        text: result.message || "Role assignment unlocked.",
-      });
+      showMessage("success", result.message || "Role assignment unlocked.");
     } catch (error) {
       console.error("Failed to unlock role assignment:", error);
 
-      setMessage({
-        type: "danger",
-        text: "Failed to unlock role assignment.",
-      });
+      showMessage("danger", "Failed to unlock role assignment.");
     }
   };
 
   const handleSaveRoles = async () => {
     if (!selectedEventNumber) {
-      setMessage({
-        type: "danger",
-        text: "Please select an event first.",
-      });
+      showMessage("danger", "Please select an event first.");
       return;
     }
 
@@ -488,10 +475,7 @@ export default function RoleAssignment() {
     }));
 
     if (updates.length === 0) {
-      setMessage({
-        type: "danger",
-        text: "There are no attendees to update.",
-      });
+      showMessage("danger", "There are no attendees to update.");
       return;
     }
 
@@ -518,24 +502,15 @@ export default function RoleAssignment() {
       const result = await response.json();
 
       if (!response.ok) {
-        setMessage({
-          type: "danger",
-          text: result.message || "Failed to save roles.",
-        });
+        showMessage("danger", result.message || "Failed to save roles.");
         return;
       }
 
-      setMessage({
-        type: "success",
-        text: result.message || "Roles saved successfully.",
-      });
+      showMessage("success", result.message || "Roles saved successfully.");
     } catch (error) {
       console.error("Failed to save roles:", error);
 
-      setMessage({
-        type: "danger",
-        text: "Failed to save roles.",
-      });
+      showMessage("danger", "Failed to save roles.");
     } finally {
       setSaving(false);
     }
@@ -543,18 +518,12 @@ export default function RoleAssignment() {
 
   const handleAddAttendanceSubmit = async () => {
     if (!selectedEventNumber || !selectedEvent) {
-      setMessage({
-        type: "danger",
-        text: "Please select an event first.",
-      });
+      showMessage("danger", "Please select an event first.");
       return;
     }
 
     if (newAttendees.length === 0) {
-      setMessage({
-        type: "danger",
-        text: "Select at least one member to add.",
-      });
+      showMessage("danger", "Select at least one member to add.");
       return;
     }
 
@@ -581,17 +550,11 @@ export default function RoleAssignment() {
       const result = await response.json();
 
       if (!response.ok) {
-        setMessage({
-          type: "danger",
-          text: result.message || "Failed to add attendance.",
-        });
+        showMessage("danger", result.message || "Failed to add attendance.");
         return;
       }
 
-      setMessage({
-        type: "success",
-        text: result.message || "Attendance added successfully.",
-      });
+      showMessage("success", result.message || "Attendance added successfully.");
 
       setNewAttendees([]);
       setAttendeeSearch("");
@@ -602,15 +565,19 @@ export default function RoleAssignment() {
     } catch (error) {
       console.error("Failed to add attendance:", error);
 
-      setMessage({
-        type: "danger",
-        text: "Failed to add attendance.",
-      });
+      showMessage("danger", "Failed to add attendance.");
     } finally {
       setSubmittingNewAttendance(false);
     }
   };
 
+  const pageShellStyle = {
+    minHeight: "100vh",
+    width: "100%",
+    overflowY: "auto",
+    overflowX: "hidden",
+    paddingBottom: "2rem",
+  };
   if (loadingStatus) {
     return (
       <div className="container mt-5">
@@ -620,7 +587,7 @@ export default function RoleAssignment() {
   }
 
   const renderAddAttendancePanel = () => (
-    <div className="border rounded p-3 mt-3 bg-light">
+    <div className="border rounded p-3 mt-3 bg-light" style={pageShellStyle}>
       <label className="form-label">Search members to add</label>
 
       <input
@@ -709,7 +676,7 @@ export default function RoleAssignment() {
       <h1 className="mb-4">Role Assignment</h1>
 
       {message && (
-        <div className={`alert alert-${message.type}`} role="alert">
+        <div className={`alert alert-${message.type} fade show`} role="alert">
           {message.text}
         </div>
       )}

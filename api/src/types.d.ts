@@ -18,6 +18,7 @@ declare module 'express-session' {
     token?: string;
     csrfToken?: string;
     validUsername?: string;
+    validUsernames?: string[];
   }
 }
 declare global{
