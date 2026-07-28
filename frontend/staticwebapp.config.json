@@ -1,19 +1,34 @@
 {
-"navigationFallback": {
+  "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": [
-      "/assets/*", 
-      "/*.css", "/*.js",
+      "/assets/*",
+      "/*.css",
+      "/*.js",
       "/favicon.ico",
       "/manifest.webmanifest"
     ]
   },
 
   "globalHeaders": {
-    "Strict-Transport-Security":
-      "max-age=31536000; includeSubDomains; preload",
-    "Content-Security-Policy":
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net;  img-src 'self' data:; connect-src 'self' __API_ORIGIN__ https://cdn.jsdelivr.net;"
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' __API_ORIGIN__ https://cdn.jsdelivr.net;"
+  },
+
+  "networking": {
+    "allowedIpRanges": [
+      "AzureFrontDoor.Backend"
+    ]
+  },
+
+  "forwardingGateway": {
+    "requiredHeaders": {
+      "X-Azure-FDID": "ec1cd016-b473-4c45-bdbf-74db068aeb9a"
+    },
+    "allowedForwardedHosts": [
+      "JRFBAttendanceAppfd-d7bmgfb8f6g6debw.z03.azurefd.net",
+      "attendance.jamberoorfb.com",
+      "dev.attendance.jamberoorfb.com"
+    ]
   }
 }
-
