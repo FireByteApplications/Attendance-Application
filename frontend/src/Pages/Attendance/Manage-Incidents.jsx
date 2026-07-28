@@ -27,7 +27,15 @@ export default function CreateIncidentsPage() {
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [deletingEventNumber, setDeletingEventNumber] = useState("")
+  const [showDeletePinModal, setShowDeletePinModal] = useState(false);
 
+  const pageShellStyle = {
+    minHeight: "100vh",
+    width: "100%",
+    overflowY: "auto",
+    overflowX: "hidden",
+    paddingBottom: "2rem",
+  };
   useEffect(() => {
     if (csrfToken) {
       sessionStorage.setItem("csrf", csrfToken);
@@ -61,56 +69,29 @@ export default function CreateIncidentsPage() {
   }, []);
 
   useEffect(() => {
-    if (unlocked) {
       listIncidents();
       listEvents();
-    }
-  }, [unlocked]);
+  }, []);
+
+  useEffect(() => {
+    if (!submitMessage) return;
+
+    const timerId = window.setTimeout(() => {
+      setSubmitMessage(null);
+      setSubmitStatus(null);
+    }, 5000);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+
+    return () => window.clearTimeout(timerId);
+  }, [submitMessage]);
 
   const showMessage = (status, message) => {
     setSubmitStatus(status);
     setSubmitMessage(message);
-  };
-
-  const handleUnlock = async (e) => {
-    e.preventDefault();
-
-    setSubmitMessage(null);
-    setSubmitStatus(null);
-
-    if (!/^\d{4}$/.test(pin)) {
-      showMessage("error", "PIN must be exactly 4 digits.");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/unlock`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
-          },
-          body: JSON.stringify({ pin }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        showMessage("error", result.message || "Invalid PIN.");
-        return;
-      }
-
-      setUnlocked(true);
-      setPin("");
-      showMessage("success", "Incident creation unlocked.");
-    } catch (error) {
-      console.error("Failed to unlock incident creation:", error);
-      showMessage("error", "Failed to unlock incident creation.");
-    }
   };
 
   const listIncidents = async () => {
@@ -239,122 +220,118 @@ export default function CreateIncidentsPage() {
     }
   };
 
-  const handleDelete = async (eventNumber) => {
+  const handleDelete = async (eventNumberToDelete = deletingEventNumber) => {
+    if (!eventNumberToDelete) {
+      showMessage("error", "No item selected for deletion.");
+      return;
+    }
+
     setIsDeleting(true);
     setSubmitMessage(null);
-    setSubmitStatus(null); 
-    setDeletingEventNumber(eventNumber)
+    setSubmitStatus(null);
 
     try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/deleteIncident/${eventNumberToDelete}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+          },
+        }
+      );
 
-      const response = await fetch(`${apiurl}/api/attendance/deleteIncident/${eventNumber}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
-        },
-      });
       const result = await response.json();
-      
+
       if (!response.ok) {
-        showMessage("error", "Deletion error: " + result.message)
-        setIsDeleting(false)
-        setDeletingEventNumber("")
-        return
+        showMessage("error", "Deletion error: " + result.message);
+        return;
       }
-      var message = ''
-      if(eventNumber.startsWith("EVT-")) {
-        message = "Sucessfully deleted Event"
-      } else {
-        message = "Successfully deleted Incident"
-      }
-      showMessage("success", message )
-      setIsDeleting(false)
-      setDeletingEventNumber("")
-      await listIncidents()
-      await listEvents()
-      return
 
-  } catch (error) {
-      console.error("An error has occured", error);
-      showMessage("error", "An error has occured please try again later");
-      setIsDeleting(false)
+      const message = eventNumberToDelete.startsWith("EVT-")
+        ? "Successfully deleted Event"
+        : "Successfully deleted Incident";
+
+      showMessage("success", message);
+
+      await listIncidents();
+      await listEvents();
+    } catch (error) {
+      console.error("An error has occurred", error);
+      showMessage("error", "An error has occurred. Please try again later.");
+    } finally {
+      setIsDeleting(false);
+      setDeletingEventNumber("");
     }
-  }
+  };
 
-  if (loadingStatus) {
+  const handleDeleteWithPin = async (e) => {
+    e.preventDefault();
+
+    if (!deletingEventNumber) {
+      showMessage("error", "No item selected for deletion.");
+      return;
+    }
+
+    if (unlocked) {
+      await handleDelete(deletingEventNumber);
+      return;
+    }
+
+    if (!/^\d{4}$/.test(pin)) {
+      showMessage("error", "PIN must be exactly 4 digits.");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/roleAssignment/unlock`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+          },
+          body: JSON.stringify({ pin }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        showMessage("error", "Error validating PIN: " + result.message);
+        return;
+      }
+
+      setUnlocked(true);
+      await handleDelete(deletingEventNumber);
+    } catch (error) {
+      console.error("Failed to validate pin: ", error);
+      showMessage("error", "Failed to validate PIN.");
+    } finally {
+      setShowDeletePinModal(false);
+      setPin("");
+      setIsDeleting(false);
+    }
+  };
+  
     return (
-      <div className="container mt-5">
-        <p>Loading event management page...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="container justify-content-center my-4"
-      style={{ minHeight: "100vh" }}
-    >
-      {submitMessage && (
-        <div
-          className={`alert ${
-            submitStatus === "success" ? "alert-success" : "alert-danger"
-          }`}
-          role="alert"
-        >
-          {Array.isArray(submitMessage) ? (
-            <ul className="mb-0">
-              {submitMessage.map((message, index) => (
-                <li key={index}>{message}</li>
-              ))}
-            </ul>
-          ) : (
-            submitMessage
-          )}
-        </div>
-      )}
-
-      {!unlocked ? (
-        <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
-          <div className="card-body pt-4 px-4">
-            <h4 className="card-title mb-4 text-center">
-              Enter Event Management PIN
-            </h4>
-
-            <form onSubmit={handleUnlock}>
-              <div className="mb-3 text-center">
-                <label htmlFor="incidentPinInput" className="form-label">
-                  <span style={{ fontSize: "25px" }}>PIN:</span>
-                </label>
-
-                <input
-                  id="incidentPinInput"
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength="4"
-                  className="form-control text-center"
-                  value={pin}
-                  onChange={(e) => {
-                    const digitsOnly = e.target.value.replace(/\D/g, "");
-                    setPin(digitsOnly.slice(0, 4));
-                  }}
-                  autoComplete="off"
-                  required
-                />
-              </div>
-
-              <div className="text-center">
-                <button type="submit" className="btn btn-secondary">
-                  Unlock
-                </button>
-              </div>
-            </form>
+      <div style={pageShellStyle}>
+        {submitMessage && (
+          <div
+            className={`alert ${
+              submitStatus === "success" ? "alert-success" : "alert-danger"
+            } mx-5 mt-3`}
+            role="alert"
+          >
+            {submitMessage}
           </div>
-        </div>
-      ) : (
-        <>
+        )}
           <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
             <div className="card-body pt-4 px-4">
               <h4 className="card-title mb-4 text-center">Create Incident</h4>
@@ -454,7 +431,16 @@ Example: AFA - Kiama - 01 July 26"
                             <button 
                             type="button" 
                             className="btn btn-danger"
-                            onClick={() => handleDelete(incident.eventNumber)}
+                            onClick={() => {
+                              setDeletingEventNumber(incident.eventNumber);
+                              setPin("");
+
+                              if (unlocked) {
+                                handleDelete(incident.eventNumber);
+                              } else {
+                                setShowDeletePinModal(true);
+                              }
+                            }}
                             disabled={isDeleting}>
                               {isDeleting && deletingEventNumber === incident.eventNumber ? "Deleting..." : "Delete" }</button></td>
                         </tr>
@@ -463,6 +449,75 @@ Example: AFA - Kiama - 01 July 26"
                   </tbody>
                 </table>
               </div>
+              {showDeletePinModal && (
+                <>
+                  <div
+                    className="modal show d-block"
+                    tabIndex="-1"
+                    role="dialog"
+                  >
+                    <div className="modal-dialog modal-dialog-centered">
+                      <div className="modal-content">
+                        <form onSubmit={handleDeleteWithPin}>
+                          <div className="modal-header">
+                            <h5 className="modal-title">Confirm Delete</h5>
+
+                            <button
+                              type="button"
+                              className="btn-close"
+                              onClick={() => setShowDeletePinModal(false)}
+                              disabled={isDeleting}
+                            ></button>
+                          </div>
+
+                          <div className="modal-body">
+                            <p className="mb-3">
+                              Enter the delete PIN to confirm this action.
+                            </p>
+
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength="4"
+                              className="form-control"
+                              placeholder="Enter PIN"
+                              value={pin}
+                              onChange={(e) => {
+                                const digitsOnly = e.target.value.replace(/\D/g, "");
+                                setPin(digitsOnly.slice(0, 4));
+                              }}
+                              autoComplete="off"
+                              required
+                            />
+                          </div>
+
+                          <div className="modal-footer">
+                            <button
+                              type="button"
+                              className="btn btn-outline-secondary"
+                              onClick={() => setShowDeletePinModal(false)}
+                              disabled={isDeleting}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              type="submit"
+                              className="btn btn-danger"
+                              disabled={isDeleting || pin.length !== 4}
+                            >
+                              {isDeleting ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="modal-backdrop show"></div>
+                </>
+              )}
             </div>
             <div className="card-body p-4">
                 <h4 className="card-title mb-4 text-center">Non incident events</h4>
@@ -496,7 +551,16 @@ Example: AFA - Kiama - 01 July 26"
                               <button 
                               type="button" 
                               className="btn btn-danger"
-                              onClick={() => handleDelete(event.eventNumber)}
+                              onClick={() => {
+                                setDeletingEventNumber(event.eventNumber);
+                                setPin("");
+
+                                if (unlocked) {
+                                  handleDelete(event.eventNumber);
+                                } else {
+                                  setShowDeletePinModal(true);
+                                }
+                              }}
                               disabled={isDeleting}>
                                 {isDeleting && deletingEventNumber === event.eventNumber ? "Deleting..." : "Delete" }</button></td>
                           </tr>
@@ -507,8 +571,5 @@ Example: AFA - Kiama - 01 July 26"
                 </div>
               </div>
           </div>
-        </>
+        </div>
       )}
-    </div>
-  );
-}

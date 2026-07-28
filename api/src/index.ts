@@ -1037,140 +1037,269 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
 
   const CheckUsername: RequestHandler = async (req, res) => {
-    try {
-      const username = String(req.body.username);
+  try {
+    const rawUsernames: unknown[] = Array.isArray(req.body.usernames)
+      ? req.body.usernames
+      : [req.body.username];
 
-      const exists = await usersCollection.findOne(
-        { username },
+    const usernames: string[] = Array.from(
+      new Set(
+        rawUsernames
+          .map((username: unknown) =>
+            String(username ?? "").trim().toLowerCase()
+          )
+          .filter((username: string) => Boolean(username))
+      )
+    );
+
+    if (usernames.length === 0) {
+      req.session.validUsername = undefined;
+      req.session.validUsernames = undefined;
+
+      return res.status(400).json({
+        ok: false,
+        message: "No usernames provided.",
+      });
+    }
+
+    if (usernames.length > 20) {
+      req.session.validUsername = undefined;
+      req.session.validUsernames = undefined;
+
+      return res.status(400).json({
+        ok: false,
+        message: "Too many usernames selected.",
+      });
+    }
+
+    type UsernameResult = {
+      username?: string;
+    };
+
+    const users = await usersCollection
+      .find<UsernameResult>(
+        {
+          username: {
+            $in: usernames,
+          },
+        },
         {
           projection: {
             _id: 1,
             username: 1,
           },
         }
-      );
+      )
+      .toArray();
 
-      if (!exists) {
-        req.session.validUsername = undefined;
+    const foundUsernames = new Set<string>(
+      users.map((user) => String(user.username ?? "").toLowerCase())
+    );
 
-        return res.status(404).json({
-          ok: false,
-          message: "Username not found",
-        });
-      }
+    const missingUsernames = usernames.filter((username: string) =>
+      !foundUsernames.has(username)
+    );
 
-      req.session.validUsername = username;
+    if (missingUsernames.length > 0) {
+      req.session.validUsername = undefined;
+      req.session.validUsernames = undefined;
 
-      return res.status(200).json({
-        ok: true,
-      });
-    } catch (e) {
-      console.error("checkUser error", e);
-
-      return res.status(500).json({
+      return res.status(404).json({
         ok: false,
-        message: "Unable to check username",
+        message: "One or more usernames were not found.",
+        missingUsernames,
       });
     }
-  };
+
+    req.session.validUsername = usernames[0];
+    req.session.validUsernames = usernames;
+
+    return res.status(200).json({
+      ok: true,
+      usernames,
+    });
+  } catch (e) {
+    console.error("checkUser error", e);
+
+    return res.status(500).json({
+      ok: false,
+      message: "Unable to check usernames.",
+    });
+  }
+};
   app.post('/api/attendance/checkUser', limit.usernameCheckLimiter, sanitise.sanitizeCheckUsernameInput, CheckUsername)
 
   const submitAttendance: RequestHandler = async (req, res) => {
-  
-  const spaceName = (req.body.name as string).trim();
-  const dotName   = spaceName.replace(/\s+/g, '.');  
-  
-  const details: any = {};
 
-  const eventRequiredActivities = [
-  "Incident-Call",
-  "Pile-Burn",
-  "Hazard-Reduction",
-  "Deployment",
-  "Strike-Team",
-  "Training",
-  "Community-Engagement",
-  "Other-Operational"
-  ];
+    const eventRequiredActivities = [
+      "Incident-Call",
+      "Pile-Burn",
+      "Hazard-Reduction",
+      "Deployment",
+      "Strike-Team",
+      "Training",
+      "Community-Engagement",
+      "Other-operational",
+    ];
 
-  function activityRequiresEvent(activity: string) {
-  return eventRequiredActivities.includes(activity);
-  }
+    function activityRequiresEvent(activity: string) {
+      return eventRequiredActivities.includes(activity);
+    }
 
-  console.log("ValidUsername: ", req.session.validUsername)
-  console.log("dotname", dotName)
+    function nameToUsername(name: string) {
+      return String(name).trim().replace(/\s+/g, ".").toLowerCase();
+    }
 
-  if (req.session.validUsername !== dotName.toLowerCase()) {
-    res.status(403).json({ message: 'Username not validated in this session' });
-    return;
-  }
-  try{
-    const {
-      name,
-      operational,
-      activity,
-      epochTimestamp,
-      baType,
-      chainsawType,
-      deploymentType,
-      deploymentLocation,
-      otherType,
-      eventNumber
-    } = req.body;
-
-    console.log("Request Body: ", req.body)
-
-    const eventDate = moment(epochTimestamp)
-      .tz("Australia/Sydney")
-      .format("YYYY-MM-DD");
-
-    let finalEventNumber: string | undefined = undefined;
-    let eventCreated = false;
-
-    if (activityRequiresEvent(activity)) {
-      const { event, eventCreated: created } = await eventService.resolveEventForAttendance(
+    try {
+      const {
+        name,
+        names,
+        operational,
         activity,
-        eventDate,
-        eventNumber
+        epochTimestamp,
+        baType,
+        chainsawType,
+        deploymentType,
+        deploymentLocation,
+        otherType,
+        eventNumber,
+      } = req.body;
+      console.log("req body: ", req.body)
+      const submittedNames = Array.isArray(names) ? names : [name];
+
+      const cleanNames = Array.from(
+        new Set(
+          submittedNames
+            .map((submittedName) => String(submittedName ?? "").trim())
+            .filter(Boolean)
+        )
       );
 
-      finalEventNumber = event.eventNumber;
-      eventCreated = created;
-    }
-    // Conditional data fields based on activity type
-    if (activity === "Chainsaw-Checks") {
-      details.chainsawType = chainsawType;
-    }
+      if (cleanNames.length === 0) {
+        return res.status(400).json({
+          message: "At least one name is required.",
+        });
+      }
 
-    if (activity === "BA-Checks") {
-      details.baType = baType;
-    }
+      if (cleanNames.length > 20) {
+        return res.status(400).json({
+          message: "Too many names submitted.",
+        });
+      }
 
-    if (activity === "Deployment") {
-      details.deploymentType = deploymentType;
-      details.deploymentLocation = deploymentLocation;
-    }
+      const submittedUsernames = cleanNames.map(nameToUsername);
 
-    if (activity === "Other-Non-operational" || activity === "Other-operational") {
-      details.otherType = otherType;
-    }
+      const validSessionUsernames = Array.isArray(req.session.validUsernames)
+        ? req.session.validUsernames.map((username) =>
+            String(username).toLowerCase()
+          )
+        : req.session.validUsername
+        ? [String(req.session.validUsername).toLowerCase()]
+        : [];
 
-    const record: any = {
-      name,
-      operational,
-      activity,
-      details,
-      roles: [] as string[],
-      epochTimestamp,
-    };
+      const validUsernameSet = new Set(validSessionUsernames);
 
-    console.log("Record to insert:", record)
+      const allNamesValidated = submittedUsernames.every((username) =>
+        validUsernameSet.has(username)
+      );
 
-    if (finalEventNumber) {
-      record.eventNumber = finalEventNumber;
-    }
+      if (!allNamesValidated) {
+        return res.status(403).json({
+          message: "One or more usernames were not validated in this session.",
+        });
+      }
 
-    const result = await recordsCollection.insertOne(record);
+      const eventDate = moment(epochTimestamp)
+        .tz("Australia/Sydney")
+        .format("YYYY-MM-DD");
+
+      let finalEventNumber: string | undefined = undefined;
+      let eventCreated = false;
+
+      if (activityRequiresEvent(activity)) {
+        const { event, eventCreated: created } =
+          await eventService.resolveEventForAttendance(
+            activity,
+            eventDate,
+            eventNumber
+          );
+
+        finalEventNumber = event.eventNumber;
+        eventCreated = created;
+      }
+
+      function buildDetailsVariants() {
+        if (activity === "BA-Checks") {
+          const baTypes =
+            baType === "All Vehicles"
+              ? ["Cat 1", "Pumper"]
+              : [baType];
+
+          return baTypes.map((type) => ({
+            baType: type,
+          }));
+        }
+
+        if (activity === "Chainsaw-Checks") {
+          const chainsawTypes =
+            chainsawType === "All Vehicles"
+              ? ["Cat 1", "Pumper", "Cat 9"]
+              : [chainsawType];
+
+          return chainsawTypes.map((type) => ({
+            chainsawType: type,
+          }));
+        }
+
+        if (activity === "Deployment") {
+          return [
+            {
+              deploymentType,
+              deploymentLocation,
+            },
+          ];
+        }
+
+        if (
+          activity === "Other-Non-operational" ||
+          activity === "Other-operational"
+        ) {
+          return [
+            {
+              otherType,
+            },
+          ];
+        }
+
+        return [{}];
+      }
+
+      const detailsVariants = buildDetailsVariants();
+
+      const records = cleanNames.flatMap((cleanName) =>
+        detailsVariants.map((details) => {
+          const record: any = {
+            name: cleanName,
+            operational,
+            activity,
+            details,
+            roles: [] as string[],
+            epochTimestamp,
+          };
+
+          if (finalEventNumber) {
+            record.eventNumber = finalEventNumber;
+          }
+
+          return record;
+        })
+      );
+      console.log("Records:", records)
+      const result =
+        records.length === 1
+          ? await recordsCollection.insertOne(records[0])
+          : await recordsCollection.insertMany(records);
+
       if (eventCreated) {
         invalidateEventCaches();
       }
@@ -1179,17 +1308,25 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         message: eventCreated
           ? "Attendance submitted successfully. A new event was created."
           : "Attendance submitted successfully.",
+        insertedCount: records.length,
         eventCreated,
         eventNumber: finalEventNumber,
-        result
+        result,
       });
-  } catch (error) {
-    console.error("Error submitting attendance:", error);
-    return res.status(500).json({
-      message: "Failed to submit attendance."
-    });
+    } catch (error) {
+      console.error("Error submitting attendance:", error);
+
+      if ((error as any).code === 11000) {
+        return res.status(409).json({
+          message: "Attendance has already been recorded for this event.",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Failed to submit attendance.",
+      });
+    }
   };
-};
   app.post('/api/attendance/submit', limit.attendanceSubmitLimiter, sanitise.sanitizeAttendanceInput, submitAttendance)
 
   const listNames: RequestHandler = async (req, res) => {
@@ -1397,7 +1534,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listEvents', limit.eventListLimiter, requireRoleAssignmentPin, listEvents)
+  app.get('/api/attendance/listEvents', limit.eventListLimiter, listEvents)
 
   const roleAssignmentStatus: RequestHandler = (req, res) => {
     const roleAssignmentUnlockMinutes = 30;
