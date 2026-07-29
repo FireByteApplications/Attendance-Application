@@ -1406,48 +1406,58 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   }
-  app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, requireRoleAssignmentPin, sanitise.sanitizeIncidentCreation, createIncident)
+  app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, sanitise.sanitizeIncidentCreation, createIncident)
   
   const deleteIncident: RequestHandler = async (req, res) => {
-    const eventNumber = String(req.params.eventNumber)
+    const eventNumber = String(req.params.eventNumber ?? "").trim();
 
-    if (!req.params.eventNumber) {
-      res.status(400).json({message: "Bad request"})
+    if (!eventNumber) {
+      return res.status(400).json({
+        message: "Bad request.",
+      });
     }
+
     try {
-      const aggregationPipeline = [
-        { $match: {eventNumber: {$eq: eventNumber} } },
-        { $count: "events_with_incidents"}
-      ]
+      const attendanceCount = await recordsCollection.countDocuments({
+        eventNumber,
+      });
 
-      const findEventsWithIncidents = await recordsCollection.aggregate(aggregationPipeline).toArray()
-      const count = findEventsWithIncidents[0]?.events_with_incidents ?? 0;
-      if (count > 0 && !eventNumber.startsWith("EVT-")) {
-        res.status(409).json({message: "Unable to delete incident as there are attendances against it"})
-      } else if (count == 1 && eventNumber.startsWith("EVT-") || !eventNumber.startsWith("EVT-")) {
-        const deleteQuery = {eventNumber : `${eventNumber}`}
-        const result = await eventsCollection.deleteOne(deleteQuery)
+      const isEvent = eventNumber.startsWith("EVT-");
+      const isIncident = !isEvent;
 
-        if (result.deletedCount === 1) {
-          res.status(200).json({message: "Incident " + eventNumber + " deleted successfully"})
-          invalidateEventCaches();
-        } else {
-          res.status(404).json({message: "Incident " + eventNumber + " not found unable to be deleted"})
-      } 
-
-      } else {
-        res.status(409).json({message: "Unable to delete event as there is more than 1 attendance against it"})
-      }
-      } catch(error: any) {
-        console.error("Error deleting incident", error)
-        res.status(500).json({
-          message: "Error unable to delete incident please try again later"
-        })
+      if (isIncident && attendanceCount > 0) {
+        return res.status(409).json({
+          message: "Unable to delete incident as there are attendances against it.",
+        });
       }
 
+      if (isEvent && attendanceCount > 1) {
+        return res.status(409).json({
+          message: "Unable to delete event as there is more than 1 attendance against it.",
+        });
+      }
 
-      
-  }
+      const result = await eventsCollection.deleteOne({ eventNumber });
+
+      if (result.deletedCount !== 1) {
+        return res.status(404).json({
+          message: `${isEvent ? "Event" : "Incident"} ${eventNumber} not found and could not be deleted.`,
+        });
+      }
+
+      invalidateEventCaches();
+
+      return res.status(200).json({
+        message: `${isEvent ? "Event" : "Incident"} ${eventNumber} deleted successfully.`,
+      });
+    } catch (error) {
+      console.error("Error deleting incident/event", error);
+
+      return res.status(500).json({
+        message: "Error unable to delete incident/event. Please try again later.",
+      });
+    }
+  };
   app.delete('/api/attendance/deleteIncident/:eventNumber', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberDelete, deleteIncident)
 
   const listIncidents: RequestHandler = async (req, res) => {
