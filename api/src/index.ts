@@ -25,6 +25,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
+const isProd = process.env.NODE_ENV === "production";
 const DB_NAME = process.env.DB_NAME;
 const cosmosDbUri = process.env.COSMOS_DB_URI;
 const sessionStoreUrl = process.env.SESSION_STORE_URL
@@ -71,6 +72,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    
     
     cookie: {
       httpOnly: true,

@@ -207,6 +207,7 @@ export default function OperationalPage() {
               maxWidth: "400px",
               width: "100%",
               marginBottom: "1rem"
+              marginBottom: "1rem"
             }}>
           <label htmlFor="inputDate" className="form-label">Backdate (optional):</label>
           <input
