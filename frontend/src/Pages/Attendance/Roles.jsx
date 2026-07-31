@@ -111,20 +111,29 @@ const skills = {
     "Training",
     "Other-operational",
   ],
-  "Working on roofs": ["Deployment", "Other-operational"],
+  "Working on roofs": [
+    "Deployment", 
+    "Other-operational"
+  ],
   TIC: [
     "Incident-Call",
     "Hazard-Reduction",
     "Training",
     "Other-operational",
   ],
-  "Flood Rescue": ["Deployment", "Other-operational"],
+  "Flood Rescue": [
+    "Deployment", 
+    "Other-operational"
+  ],
   Burnover: [
     "Incident-Call",
     "Strike-Team",
     "Training",
     "Other-operational",
   ],
+  "Gas Detection": [
+    "Incident-Call"
+  ]
 };
 
 function getRolesForActivity(activity) {
@@ -373,53 +382,55 @@ export default function RoleAssignment() {
   
 
   const loadAttendees = async (eventNumber = selectedEventNumber) => {
-  if (!unlocked || !eventNumber) {
-    setAttendees([]);
-    setRoleDrafts({});
-    return;
-  }
-
-  setLoadingAttendees(true);
-  setMessage(null);
-  setAttendees([]);
-  setRoleDrafts({});
-
-  try {
-    const response = await fetch(
-      `${apiurl}/api/attendance/roleAssignment/attendees?eventNumber=${encodeURIComponent(
-        eventNumber
-      )}`,
-      {
-        method: "GET",
-        credentials: "include",
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      showMessage("danger", result.message || "Failed to load attendees.");
+    if (!unlocked || !eventNumber) {
+      setAttendees([]);
+      setRoleDrafts({});
       return;
     }
 
-    const rows = Array.isArray(result) ? result : [];
+    setLoadingAttendees(true);
+    setMessage(null);
 
-    setAttendees(rows);
+    try {
+      const response = await fetch(
+        `${apiurl}/api/attendance/roleAssignment/attendees?eventNumber=${encodeURIComponent(
+          eventNumber
+        )}`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
 
-    const drafts = {};
+      const result = await response.json();
 
-    for (const row of rows) {
-      drafts[row.recordId] = Array.isArray(row.roles) ? row.roles : [];
+      if (!response.ok) {
+        showMessage("danger", result.message || "Failed to load attendees.");
+        return;
+      }
+
+      const rows = Array.isArray(result) ? result : [];
+
+      setAttendees(rows);
+
+      setRoleDrafts((currentDrafts) => {
+        const nextDrafts = {};
+
+        for (const row of rows) {
+          nextDrafts[row.recordId] =
+            currentDrafts[row.recordId] ??
+            (Array.isArray(row.roles) ? row.roles : []);
+        }
+
+        return nextDrafts;
+      });
+    } catch (error) {
+      console.error("Failed to load attendees:", error);
+
+      showMessage("danger", "Failed to load attendees.");
+    } finally {
+      setLoadingAttendees(false);
     }
-
-    setRoleDrafts(drafts);
-  } catch (error) {
-    console.error("Failed to load attendees:", error);
-
-    showMessage("danger", "Failed to load attendees.");
-  } finally {
-    setLoadingAttendees(false);
-  }
   };
   
   const handleUnlock = async (e) => {

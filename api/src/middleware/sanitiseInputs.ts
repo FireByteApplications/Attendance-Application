@@ -19,7 +19,8 @@ const allowedRoles = new Set( [
     "Working on roofs",
     "TIC",
     "Flood Rescue",
-    "Burnover"
+    "Burnover",
+    "Gas Detection"
     ]);
 
 const MAX_REPORT_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years
@@ -149,8 +150,6 @@ export function sanitizeAttendanceInput(
     otherType,
     eventNumber,
   } = req.body;
-
-  console.log("Pre sanitised", req.body)
 
   const rawNames: unknown[] = Array.isArray(names) ? names : [name];
 

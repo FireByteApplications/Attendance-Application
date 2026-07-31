@@ -273,7 +273,14 @@ export default function Reports({ users = [] }) {
               <label className="form-check-label">Include members with 0 attendance</label>
             </div>
             <div className="form-check form-switch">
-              <input className="form-check-input" type="checkbox" role="switch" name="detailedAttendance" onChange={handleChange}></input>
+              <input
+                className="form-check-input"
+                type="checkbox"
+                role="switch"
+                name="detailed"
+                checked={form.detailed}
+                onChange={handleChange}
+              />
               <label className="form-check-label">Detailed attendance</label>
             </div>
             <div className="col-12 mt-3">

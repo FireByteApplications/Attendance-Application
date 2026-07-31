@@ -121,64 +121,38 @@ client.connect().then(() => {
   const eventsCollection = db.collection('Events');
   const countersCollection = db.collection<{ _id: string; seq: number }>("Counters");
 
-function isEmptyXlsxCellValue(value: XlsxCell): boolean {
-  if (value == null) return true;
-  if (typeof value === "string") return value.trim() === "";
-  return false;
-}
-
-function removeEmptyColumns(
-  rows: XlsxRow[],
-  headerRowIndex = 0,
-  firstRemovableColumnIndex = 1
-): XlsxRow[] {
-  const maxColumnCount = Math.max(...rows.map((row) => row.length));
-
-  for (
-    let columnIndex = maxColumnCount - 1;
-    columnIndex >= firstRemovableColumnIndex;
-    columnIndex--
-  ) {
-    const hasData = rows
-      .slice(headerRowIndex + 1)
-      .some((row) => !isEmptyXlsxCellValue(row[columnIndex]));
-
-    if (!hasData) {
-      for (const row of rows) {
-        row.splice(columnIndex, 1);
-      }
-    }
+  function isEmptyXlsxCellValue(value: XlsxCell): boolean {
+    if (value == null) return true;
+    if (typeof value === "string") return value.trim() === "";
+    return false;
   }
 
-  return rows;
-}
+  function removeEmptyColumns(
+    rows: XlsxRow[],
+    headerRowIndex = 0,
+    firstRemovableColumnIndex = 1
+  ): XlsxRow[] {
+    const maxColumnCount = Math.max(...rows.map((row) => row.length));
 
+    for (
+      let columnIndex = maxColumnCount - 1;
+      columnIndex >= firstRemovableColumnIndex;
+      columnIndex--
+    ) {
+      const hasData = rows
+        .slice(headerRowIndex + 1)
+        .some((row) => !isEmptyXlsxCellValue(row[columnIndex]));
 
+      if (!hasData) {
+        for (const row of rows) {
+          row.splice(columnIndex, 1);
+        }
+      }
+    }
 
-async function sendXlsxResponse(
-  res: Response,
-  filename: string,
-  rows: XlsxRow[]
-) {
-  const buffer = await writeExcelFile(rows, {
-    sheet: "Report",
-    columns: [
-      {
-        width: 80,
-      },
-    ],
-  }).toBuffer();
+    return rows;
+  }
 
-  res.setHeader(
-    "Content-Type",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  );
-
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
-  res.send(Buffer.from(buffer));
-}
-  
   function invalidateUserCaches() {
     usernameSearchCache.clear();
     userNamesCache.clear();
@@ -189,6 +163,50 @@ async function sendXlsxResponse(
   function invalidateEventCaches() {
     eventListCache.delete("listIncidents");
     eventListCache.delete("listEvents");
+  }
+
+  function generateCodeVerifier() {
+    return crypto.randomBytes(32).toString('base64url');
+  }
+
+  function generateCodeChallenge(verifier: string) {
+    return crypto.createHash('sha256').update(verifier).digest('base64url');
+  }
+
+  function getOperationalStatusForActivity(activity: string) {
+    if (operationalActivities.has(activity)) {
+      return "Operational";
+    }
+
+    if (nonOperationalActivities.has(activity)) {
+      return "Non-Operational";
+    }
+
+    return null;
+  }
+
+  async function sendXlsxResponse(
+    res: Response,
+    filename: string,
+    rows: XlsxRow[]
+  ) {
+    const buffer = await writeExcelFile(rows, {
+      sheet: "Report",
+      columns: [
+        {
+          width: 80,
+        },
+      ],
+    }).toBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    res.send(Buffer.from(buffer));
   }
 
   async function getCachedReportUsers() {
@@ -218,24 +236,36 @@ async function sendXlsxResponse(
   return users;
   }
 
-  const eventService = createEventService({
-    eventsCollection,
-    countersCollection
-  });
-
   async function fetchOrThrow<T>(url: string, init: FetchRequestInit): Promise<T> {
     const res = await fetch(url, init);
     if (!res.ok) throw new Error(`${res.status} – ${await res.text()}`);
     return res.json() as Promise<T>;
   }
 
-  function generateCodeVerifier() {
-    return crypto.randomBytes(32).toString('base64url');
-  }
+  const eventService = createEventService({
+    eventsCollection,
+    countersCollection
+  });
 
-  function generateCodeChallenge(verifier: string) {
-    return crypto.createHash('sha256').update(verifier).digest('base64url');
-  }
+  const nonOperationalActivities = new Set([
+  "Meeting",
+  "Community-Engagement",
+  "Other-Non-operational",
+  ]);
+
+  const operationalActivities = new Set([
+    "Incident-Call",
+    "Strike-Team",
+    "Deployment",
+    "Hazard-Reduction",
+    "Pile-Burn",
+    "Training",
+    "Maintenance",
+    "BA-Checks",
+    "Chainsaw-Checks",
+    "Other-operational",
+  ]);
+
 
   //Generate CSRF Tokens
   app.get("/csrf-token", limit.csrfTokenLimiter, (req, res) => {
@@ -463,7 +493,11 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     authedReq.user = authedReq.session.user;
   const { firstName, lastName, fireZoneNumber, Status, Classification, Type, honeypot, middleName } = req.body;
 
-    if (honeypot || middleName) res.status(400).json({ message: 'Bot detected, form submission blocked' });
+    if (honeypot || middleName){ 
+      return res.status(400).json({ 
+        message: 'Bot detected, form submission blocked', 
+      });
+    }
 
     if (!firstName || !lastName || !fireZoneNumber || !Status || !Classification || !Type) {
     res.status(400).json({ message: 'Missing required fields' });
@@ -501,7 +535,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.post('/api/users/addUser', limit.adminUserMutationLimiter, sanitise.sanitizeUser, requireAdmin, addUser)
 
-
   const deleteUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -524,7 +557,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
   };
   app.post('/api/users/delete', limit.adminDeleteLimiter, requireAdmin, sanitise.sanitizeFireZoneNumber, deleteUser)
-
 
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
@@ -557,9 +589,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           { returnDocument: 'after' }
         );
         const updateRecord = await recordsCollection.updateMany(
-          {name: oldname},
-          {$set: {name: name}}
-        )
+          { name: oldname },
+          { $set: { name: updatedUser.name } }
+        );
         const userOk    = !!(updateUser?.modifiedCount ?? updateUser);
         const recordOk  = !!(updateRecord?.modifiedCount ?? updateRecord);
         if (userOk && recordOk) {
@@ -605,7 +637,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       }
   }
   app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, requireAdmin, sanitise.sanitizeUpdatedUser,  updateUser)
-
 
   const reportRun: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
@@ -710,23 +741,23 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               if (record.operational === "Operational") userStats.operationalActivities++;
               else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
             }
-            if (includeZeroAttendance) {
-            const allUsers = await usersCollection.find({}).toArray();
-            for (const user of allUsers) {
-              if (!usersWithRecords.has(user.name)) {
-                userDataMap.set(user.name, {
-                  name: user.name,
-                  memberNumber: user.id || '',
-                  status: user.member_status,
-                  membership_classification: user.membership_classification,
-                  membership_type: user.membership_type,
-                  operationalActivities: 0,
-                  nonOperationalActivities: 0,
-                  records: []
-                  });
-                }
-              } 
+        }
+        if (includeZeroAttendance) {
+          const allUsers = await usersCollection.find({}).toArray();
+          for (const user of allUsers) {
+            if (!usersWithRecords.has(user.name)) {
+              userDataMap.set(user.name, {
+                name: user.name,
+                memberNumber: user.id || '',
+                status: user.member_status,
+                membership_classification: user.membership_classification,
+                membership_type: user.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: []
+              });
             }
+          } 
         }
       const dto = [...userDataMap].map(([user, v]) => ({
         user,
@@ -739,6 +770,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       }));
       res.status(200).json(dto)
     }
+    
     } catch (error) {
       console.error('Unable to fetch records', (error as Error).message);
       res.status(500).json({ message: "Unable to fetch records" });
@@ -746,7 +778,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   }
   app.post('/api/reports/run', limit.reportRunLimiter, requireAdmin, sanitise.sanitizeReportingRunInput,  reportRun)
-
 
   const reportExport: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
@@ -1035,7 +1066,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.post("/api/reports/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeReportingExportInput,  reportExport);
 
-
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
     const rawUsernames: unknown[] = Array.isArray(req.body.usernames)
@@ -1164,7 +1194,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         otherType,
         eventNumber,
       } = req.body;
-      console.log("req body: ", req.body)
       const submittedNames = Array.isArray(names) ? names : [name];
 
       const cleanNames = Array.from(
@@ -1294,7 +1323,6 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           return record;
         })
       );
-      console.log("Records:", records)
       const result =
         records.length === 1
           ? await recordsCollection.insertOne(records[0])
@@ -1418,12 +1446,28 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
     try {
+      const isEvent = eventNumber.startsWith("EVT-");
+      const isIncident = !isEvent;
+
+      const existingEvent = await eventsCollection.findOne(
+        { eventNumber },
+        {
+          projection: {
+            _id: 1,
+            eventNumber: 1,
+          },
+        }
+      );
+
+      if (!existingEvent) {
+        return res.status(404).json({
+          message: `${isEvent ? "Event" : "Incident"} ${eventNumber} not found and could not be deleted.`,
+        });
+      }
+
       const attendanceCount = await recordsCollection.countDocuments({
         eventNumber,
       });
-
-      const isEvent = eventNumber.startsWith("EVT-");
-      const isIncident = !isEvent;
 
       if (isIncident && attendanceCount > 0) {
         return res.status(409).json({
@@ -1437,18 +1481,33 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         });
       }
 
-      const result = await eventsCollection.deleteOne({ eventNumber });
+      let deletedAttendanceCount = 0;
 
-      if (result.deletedCount !== 1) {
-        return res.status(404).json({
-          message: `${isEvent ? "Event" : "Incident"} ${eventNumber} not found and could not be deleted.`,
+      if (isEvent && attendanceCount === 1) {
+        const attendanceDeleteResult = await recordsCollection.deleteMany({
+          eventNumber,
+        });
+
+        deletedAttendanceCount = attendanceDeleteResult.deletedCount ?? 0;
+      }
+
+      const eventDeleteResult = await eventsCollection.deleteOne({
+        eventNumber,
+      });
+
+      if (eventDeleteResult.deletedCount !== 1) {
+        return res.status(500).json({
+          message: `${isEvent ? "Event" : "Incident"} attendance was checked, but the event could not be deleted.`,
         });
       }
 
       invalidateEventCaches();
 
       return res.status(200).json({
-        message: `${isEvent ? "Event" : "Incident"} ${eventNumber} deleted successfully.`,
+        message: isEvent
+          ? `Event ${eventNumber} deleted successfully. ${deletedAttendanceCount} attendance record(s) also deleted.`
+          : `Incident ${eventNumber} deleted successfully.`,
+        deletedAttendanceCount,
       });
     } catch (error) {
       console.error("Error deleting incident/event", error);
@@ -1748,43 +1807,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.patch("/api/attendance/roleAssignment/updateRoles", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeUpdateEventRolesBody, updateEventRoles);
 
-  const nonOperationalActivities = new Set([
-  "Meeting",
-  "Community-Engagement",
-  "Other-Non-operational",
-  ]);
-
-  const operationalActivities = new Set([
-    "Incident-Call",
-    "Strike-Team",
-    "Deployment",
-    "Hazard-Reduction",
-    "Pile-Burn",
-    "Training",
-    "Maintenance",
-    "BA-Checks",
-    "Chainsaw-Checks",
-    "Other-operational",
-  ]);
-
-function getOperationalStatusForActivity(activity: string) {
-  if (operationalActivities.has(activity)) {
-    return "Operational";
-  }
-
-  if (nonOperationalActivities.has(activity)) {
-    return "Non-operational";
-  }
-
-  return null;
-}
-
   const addEventAttendance: RequestHandler = async (req, res) => {
     try {
       const eventNumber = String(req.body.eventNumber);
       const usernames = req.body.usernames as string[];
-      console.log("Event Number: ", eventNumber)
-      console.log("Users: ", usernames)
 
       const event = await eventsCollection.findOne(
         { eventNumber },
@@ -1797,8 +1823,7 @@ function getOperationalStatusForActivity(activity: string) {
             description: 1,
           },
         }
-      );
-      console.log("Event:", event)
+      )
 
       if (!event) {
         return res.status(404).json({
@@ -1808,7 +1833,6 @@ function getOperationalStatusForActivity(activity: string) {
 
       const activity = String(event.eventType ?? "");
       const operational = getOperationalStatusForActivity(activity);
-      console.log("Operational: ", operational)
       if (!operational) {
         return res.status(400).json({
           message: "Selected event has an invalid activity type.",
@@ -1831,7 +1855,6 @@ function getOperationalStatusForActivity(activity: string) {
           }
         )
         .toArray();
-        console.log("Users Search: ", users)
 
       const userByUsername = new Map(
         users.map((user: any) => [
@@ -1919,6 +1942,12 @@ function getOperationalStatusForActivity(activity: string) {
       });
     } catch (error) {
       console.error("Error adding event attendance:", error);
+
+      if ((error as any).code === 11000) {
+        return res.status(409).json({
+          message: "One or more selected members are already recorded for this event.",
+        });
+      }
 
       return res.status(500).json({
         message: "Failed to add attendance.",

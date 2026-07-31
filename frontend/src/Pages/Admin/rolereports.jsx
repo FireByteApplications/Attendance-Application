@@ -49,7 +49,8 @@ export default function RoleReports() {
     "Working on roofs",
     "TIC",
     "Flood Rescue",
-    "Burnover"
+    "Burnover",
+    "Gas Detection"
     ];
 
   useEffect(() => {
