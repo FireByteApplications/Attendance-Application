@@ -20,9 +20,9 @@ export default function CheckboxContainer({selectedRoles = [], setSelectedRoles}
             style={{
               fontSize: "1rem",
               padding: "0.25rem 0.75rem",
-              maxWidth: "400px",       // ✅ limit total width
+              maxWidth: "400px",
               width: "100%",
-              marginBottom: "1rem"           // ✅ ensure it shrinks on smaller screens
+              marginBottom: "1rem"
             }}>
         <div className=" ms-2 fs-5 form-label">Select the role you actively performed:</div>
         {roles.map((role) => {

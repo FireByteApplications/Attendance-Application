@@ -1,4 +1,3 @@
-// src/Components/Navbar.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Navbar() {
@@ -74,14 +73,14 @@ export default function Navbar() {
     <nav className={`navbar navbar-dark ${isProd === true ? "bg-dark" : "bg-danger"}`}>
       <div className="container-fluid d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
-          {/* Back Button (not on index) */}
+          {/* Dont put back button on home page */}
           {!isIndex && (
             <button onClick={handleSmartBack} className="btn btn-outline-light">
               <i className="bi bi-arrow-left"></i> Back
             </button>
           )}
 
-          {/* Logout (admin only) */}
+          {/* Logout on admin pages only */}
           {isAdmin && (
             <a href={`${apiUrl}/auth/logout`} className="btn btn-outline-light">
               Logout

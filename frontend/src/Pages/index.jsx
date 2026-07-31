@@ -10,15 +10,12 @@ const handleAdminClick = async () => {
       });
 
       if (res.ok) {
-        // Session exists → go straight to dashboard
         window.location.href = '/admin/dashboard';
       } else {
-        // No session → go to login flow
         window.location.href = `${apiUrl}/auth/login`;
       }
     } catch (err) {
       console.error('Error checking session:', err);
-      // fallback to login if something fails
       window.location.href = `${apiUrl}/auth/login`;
     }
   };

@@ -115,8 +115,8 @@ export default function OperationalPage() {
     const activitySelection = 'Operational'
 
     const data = {
-      name: formattedNames[0], // keeps existing validation compatible
-      names: formattedNames,  // new multi-name submit
+      name: formattedNames[0],
+      names: formattedNames,
       operational: activitySelection,
       activity,
       eventNumber: selectedEvent,

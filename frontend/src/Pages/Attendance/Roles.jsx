@@ -379,7 +379,6 @@ export default function RoleAssignment() {
         : [...current, normalized]
     );
   };
-  
 
   const loadAttendees = async (eventNumber = selectedEventNumber) => {
     if (!unlocked || !eventNumber) {

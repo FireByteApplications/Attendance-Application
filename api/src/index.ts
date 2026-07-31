@@ -86,11 +86,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(['/api/attendance'], limit.attendanceLimiter)
+app.use(['/api/attendance'], limit.attendanceLimiter);
 
-app.use(['/api/users', '/api/reports'], limit.adminLimiter)
+app.use(['/api/users', '/api/reports'], limit.adminLimiter);
 
-app.use(helmet()); app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
+app.use(helmet()); 
+
+app.use(helmet.hsts({ maxAge: 15552000, preload:true }));
 
 app.use(
   helmet.contentSecurityPolicy({
@@ -99,7 +101,7 @@ app.use(
       frameAncestors: ["'none'"],
     },
   })
-)
+);
 
 app.use(csrfMiddleware);
 
@@ -110,7 +112,8 @@ app.set('trust proxy', 1);
 if (!cosmosDbUri) {
    // Ensure DB URI is defined before starting the server
   throw new Error('URI is not defined in the environment variables.');
-}
+};
+
 const client = new MongoClient(cosmosDbUri);
 
 client.connect().then(() => {
@@ -125,7 +128,7 @@ client.connect().then(() => {
     if (value == null) return true;
     if (typeof value === "string") return value.trim() === "";
     return false;
-  }
+  };
 
   function removeEmptyColumns(
     rows: XlsxRow[],
@@ -146,32 +149,32 @@ client.connect().then(() => {
       if (!hasData) {
         for (const row of rows) {
           row.splice(columnIndex, 1);
-        }
-      }
-    }
+        };
+      };
+    };
 
     return rows;
-  }
+  };
 
   function invalidateUserCaches() {
     usernameSearchCache.clear();
     userNamesCache.clear();
     usersListCache.clear();
     reportUsersCache.clear();
-  }
+  };
 
   function invalidateEventCaches() {
     eventListCache.delete("listIncidents");
     eventListCache.delete("listEvents");
-  }
+  };
 
   function generateCodeVerifier() {
     return crypto.randomBytes(32).toString('base64url');
-  }
+  };
 
   function generateCodeChallenge(verifier: string) {
     return crypto.createHash('sha256').update(verifier).digest('base64url');
-  }
+  };
 
   function getOperationalStatusForActivity(activity: string) {
     if (operationalActivities.has(activity)) {
@@ -183,7 +186,149 @@ client.connect().then(() => {
     }
 
     return null;
-  }
+  };
+
+  function normalizeNameKey(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  };
+
+  function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
+  function caseAndSpaceInsensitiveExactFilter(value: unknown) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  };
+
+  function normalizeRoleReportKey(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  };
+
+  function cleanRoleReportDisplayValue(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+  };
+
+  function escapeRoleReportRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
+  function roleReportCaseAndSpaceInsensitiveFilter(
+    value: unknown
+  ) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRoleReportRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  };
+
+  function buildRoleReportQuery(
+    startEpoch: number,
+    endEpoch: number,
+    names: unknown,
+    roles: unknown
+  ) {
+    const query: any = {
+      epochTimestamp: {
+        $gte: startEpoch,
+        $lte: endEpoch,
+      },
+      roles: {
+        $exists: true,
+        $ne: [],
+      },
+    };
+
+    const selectionClauses: any[] = [];
+
+    if (Array.isArray(names) && names.length > 0) {
+      selectionClauses.push({
+        $or: names.map((selectedName: unknown) => ({
+          name: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedName
+          ),
+        })),
+      });
+    }
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      selectionClauses.push({
+        $or: roles.map((selectedRole: unknown) => ({
+          roles: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedRole
+          ),
+        })),
+      });
+    }
+
+    if (selectionClauses.length > 0) {
+      query.$and = selectionClauses;
+    }
+
+    return query;
+  };
+
+  function buildRoleReportDisplayMap(
+    values: unknown[]
+  ): Map<string, string> {
+    const displayByKey = new Map<string, string>();
+
+    for (const value of values) {
+      const key = normalizeRoleReportKey(value);
+
+      if (!key || displayByKey.has(key)) {
+        continue;
+      }
+
+      displayByKey.set(
+        key,
+        cleanRoleReportDisplayValue(value)
+      );
+    }
+
+    return displayByKey;
+  };
+
+  function roleReportRecordHasRoleKey(
+    record: any,
+    roleKey: string
+  ): boolean {
+    return (
+      Array.isArray(record.roles) &&
+      record.roles.some(
+        (recordRole: unknown) =>
+          normalizeRoleReportKey(recordRole) === roleKey
+      )
+    );
+  };
 
   function normalizeNameKey(value: unknown): string {
     return String(value ?? "")
@@ -349,7 +494,7 @@ client.connect().then(() => {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
 
     res.send(Buffer.from(buffer));
-  }
+  };
 
   async function getCachedReportUsers() {
   const cached = reportUsersCache.get("reportUsers");
@@ -376,13 +521,13 @@ client.connect().then(() => {
   reportUsersCache.set("reportUsers", users);
 
   return users;
-  }
+  };
 
   async function fetchOrThrow<T>(url: string, init: FetchRequestInit): Promise<T> {
     const res = await fetch(url, init);
     if (!res.ok) throw new Error(`${res.status} – ${await res.text()}`);
     return res.json() as Promise<T>;
-  }
+  };
 
   const eventService = createEventService({
     eventsCollection,
@@ -407,10 +552,8 @@ client.connect().then(() => {
     "Chainsaw-Checks",
     "Other-operational",
   ]);
-
-
-  //Generate CSRF Tokens
-  app.get("/csrf-token", limit.csrfTokenLimiter, (req, res) => {
+  // Generates CSRF Token
+  const getCsrfToken: RequestHandler = (req, res) => {
     const csrfToken = (req as any).csrfToken();
 
     req.session.save((error) => {
@@ -426,8 +569,9 @@ client.connect().then(() => {
       res.status(200).json({
         csrfToken,
       });
-    });
-  });
+    }); 
+  };
+  app.get("/csrf-token", limit.csrfTokenLimiter, getCsrfToken)
   // Generates OAuth2 login URL with PKCE challenge
   const login: RequestHandler = (req, res) => {
 
@@ -456,8 +600,8 @@ client.connect().then(() => {
       res.status(500).json({ message: 'Server error' });
       return;
     }
-  }
-  app.get('/auth/login', limit.authLimiter, login)
+  };
+  app.get('/auth/login', limit.authLimiter, login);
   // Handles Microsoft redirect and token exchange
   const redirect: RequestHandler = async (req, res) =>{
 
@@ -529,9 +673,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
 
-  }
-  app.get('/auth/redirect', limit.authLimiter, redirect)
-
+  };
+  app.get('/auth/redirect', limit.authLimiter, redirect);
+  // Check auth
   const AuthCheck: RequestHandler = (req, res) => {
     if (!req.session || !req.session.user) {
     return res.status(401).json({ authenticated: false });
@@ -560,16 +704,16 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     user: req.session.user,
     isAdmin: !!req.session.user.isAdmin,
   });
-  }
-  app.get('/auth/check', limit.authStatusLimiter, AuthCheck)
-
+  };
+  app.get('/auth/check', limit.authStatusLimiter, AuthCheck);
+  // Check session state
   const sessionCheck: RequestHandler = (req, res) => {
       if (req.session?.user) return res.sendStatus(200);
     res.sendStatus(401);
 
-  }
-  app.get('/auth/session', limit.authStatusLimiter, sessionCheck)
-
+  };
+  app.get('/auth/session', limit.authStatusLimiter, sessionCheck);
+  // Invalidate user session
   const LogOut: RequestHandler = (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid');
@@ -581,8 +725,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.redirect(logoutUrl);
       });
   };
-  app.get('/auth/logout', limit.authLimiter, LogOut)
-
+  app.get('/auth/logout', limit.authLimiter, LogOut);
+  // Lists all users in the database
   const getUsersList: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -605,7 +749,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get('/api/users/list', limit.adminReadLimiter, requireAdmin, getUsersList);
-
+  // Gets all the names of users in the database
   const UserNames: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -628,8 +772,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ error: "Failed to fetch user names" });
     }
   };
-  app.get('/api/users/names', limit.adminReadLimiter, requireAdmin, UserNames)
-
+  app.get('/api/users/names', limit.adminReadLimiter, requireAdmin, UserNames);
+  // Add a new user to the database
   const addUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -675,8 +819,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return
     }
   };
-  app.post('/api/users/addUser', limit.adminUserMutationLimiter, sanitise.sanitizeUser, requireAdmin, addUser)
-
+  app.post('/api/users/addUser', limit.adminUserMutationLimiter, sanitise.sanitizeUser, requireAdmin, addUser);
+  // Delete a user from the database using fznumber as key
   const deleteUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -698,8 +842,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
 
   };
-  app.post('/api/users/delete', limit.adminDeleteLimiter, requireAdmin, sanitise.sanitizeFireZoneNumber, deleteUser)
-
+  app.delete('/api/users/delete', limit.adminDeleteLimiter, requireAdmin, sanitise.sanitizeFireZoneNumber, deleteUser);
+  // Update an existing users information
   const updateUser: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -777,9 +921,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         res.status(500).json({ success: false, message: 'An error occurred while updating the User.' });
         return;
       }
-  }
-  app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, requireAdmin, sanitise.sanitizeUpdatedUser,  updateUser)
-
+  };
+  app.patch('/api/users/updateRecord', limit.adminUserMutationLimiter, requireAdmin, sanitise.sanitizeUpdatedUser,  updateUser);
+  // Run a report to display on front end
   const reportRun: RequestHandler = async (req, res) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
@@ -1045,7 +1189,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post('/api/reports/run', limit.reportRunLimiter, requireAdmin, sanitise.sanitizeReportingRunInput, reportRun);
-
+  // Build a report in an excel file for download
   const reportExport: RequestHandler = async (
     req,
     res
@@ -1457,7 +1601,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post("/api/reports/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeReportingExportInput, reportExport);
-  
+  // Validate the username submitted is in the usernames collection
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
     const rawUsernames: unknown[] = Array.isArray(req.body.usernames)
@@ -1549,8 +1693,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     });
   }
   };
-  app.post('/api/attendance/checkUser', limit.usernameCheckLimiter, sanitise.sanitizeCheckUsernameInput, CheckUsername)
-
+  app.post('/api/attendance/checkUser', limit.usernameCheckLimiter, sanitise.sanitizeCheckUsernameInput, CheckUsername);
+  // Submits attendance to records collection
   const submitAttendance: RequestHandler = async (req, res) => {
 
     const eventRequiredActivities = [
@@ -1747,8 +1891,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.post('/api/attendance/submit', limit.attendanceSubmitLimiter, sanitise.sanitizeAttendanceInput, submitAttendance)
-
+  app.post('/api/attendance/submit', limit.attendanceSubmitLimiter, sanitise.sanitizeAttendanceInput, submitAttendance);
+  // Lists the names of users for the autofill feature
   const listNames: RequestHandler = async (req, res) => {
     try {
       const query = String(req.query.q ?? "");
@@ -1792,8 +1936,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.get('/api/attendance/usernameList',  limit.usernameSearchLimiter, sanitise.sanitizeUsernameListQuery, listNames)
-  
+  app.get('/api/attendance/usernameList',  limit.usernameSearchLimiter, sanitise.sanitizeUsernameListQuery, listNames);
+  // Create an incident in the events collection
   const createIncident: RequestHandler = async (req, res) => {
     const {
       date,
@@ -1825,9 +1969,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         message: "Failed to submit data"
       });
     }
-  }
-  app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, sanitise.sanitizeIncidentCreation, createIncident)
-  
+  };
+  app.post('/api/attendance/createIncident', limit.incidentCreateLimiter, sanitise.sanitizeIncidentCreation, createIncident);
+  // Delete an incident from the events collection requires pin auth
   const deleteIncident: RequestHandler = async (req, res) => {
     const eventNumber = String(req.params.eventNumber ?? "").trim();
 
@@ -1909,8 +2053,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
     }
   };
-  app.delete('/api/attendance/deleteIncident/:eventNumber', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberDelete, deleteIncident)
-
+  app.delete('/api/attendance/deleteIncident/:eventNumber', limit.incidentCreateLimiter, requireRoleAssignmentPin,  sanitise.sanitizeEventNumberDelete, deleteIncident);
+  // List the incidents in the events collection
   const listIncidents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listIncidents");
 
@@ -1952,8 +2096,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listIncidents', limit.eventListLimiter, listIncidents)
-  
+  app.get('/api/attendance/listIncidents', limit.eventListLimiter, listIncidents);
+  // List the non incident events in the events collection
   const listEvents: RequestHandler = async (req, res) => {
     const cached = eventListCache.get("listEvents");
 
@@ -1995,8 +2139,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return res.status(500).json({ message: "An error occurred" });
     }
   };
-  app.get('/api/attendance/listEvents', limit.eventListLimiter, listEvents)
-
+  app.get('/api/attendance/listEvents', limit.eventListLimiter, listEvents);
+  // Check if user has entered a valid role assignment pin within 30 min
   const roleAssignmentStatus: RequestHandler = (req, res) => {
     const roleAssignmentUnlockMinutes = 30;
     const unlockedAt = req.session.roleAssignmentUnlockedAt ?? 0;
@@ -2015,7 +2159,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     });
   };
   app.get( "/api/attendance/roleAssignment/status", limit.roleReadLimiter, roleAssignmentStatus);
-
+  // Unlock role assignment for 30 min
   const roleAssignmentUnlock: RequestHandler = async (req, res) => {
     try {
       const pin = String(req.body.pin);
@@ -2056,7 +2200,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post("/api/attendance/roleAssignment/unlock", limit.rolePinLimiter,  sanitise.sanitizeRoleAssignmentPinInput, roleAssignmentUnlock);
-
+  // List the non incident events in events collection
   const roleAssignmentEventsByDate: RequestHandler = async (req, res) => {
     try {
       const date = String(req.query.date);
@@ -2099,7 +2243,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get("/api/attendance/roleAssignment/events", limit.roleReadLimiter, requireRoleAssignmentPin, sanitise.sanitizeEventDateQuery, roleAssignmentEventsByDate);
-
+  // List the user attendances against a specific event 
   const roleAssignmentAttendees: RequestHandler = async (req, res) => {
     try {
       const eventNumber = String(req.query.eventNumber);
@@ -2148,7 +2292,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.get("/api/attendance/roleAssignment/attendees", limit.roleReadLimiter, requireRoleAssignmentPin, sanitise.sanitizeEventNumberQuery, roleAssignmentAttendees);
-
+  // Update the roles of a user for a particular attendance against a specific event
   const updateEventRoles: RequestHandler = async (req, res) => {
     try {
       const eventNumber = String(req.body.eventNumber);
@@ -2198,7 +2342,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.patch("/api/attendance/roleAssignment/updateRoles", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeUpdateEventRolesBody, updateEventRoles);
-
+  // Add attendance to an event retrospectively
   const addEventAttendance: RequestHandler = async (req, res) => {
     try {
       const eventNumber = String(req.body.eventNumber);
@@ -2347,7 +2491,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post("/api/attendance/roleAssignment/addAttendance", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeAddEventAttendanceBody, addEventAttendance);
-
+  // Return a report to display on the frontend of roles performed
   const roleReportRun: RequestHandler = async (
     req,
     res
@@ -2524,7 +2668,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     }
   };
   app.post("/api/reports/roles/run", limit.reportRunLimiter, requireAdmin, sanitise.sanitizeRoleReportRunInput, roleReportRun);
-
+  // Build and return an excel file for roles performed
   const roleReportExport: RequestHandler = async (
     req,
     res

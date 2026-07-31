@@ -105,8 +105,8 @@ export default function OperationalPage() {
       setSubmitStatus(null)
       let finalresponse;   
       const data = {
-        name: formattedNames[0], // keeps old validators/back-end compatibility
-        names: formattedNames,  // new multi-name submit
+        name: formattedNames[0],
+        names: formattedNames,
         operational: activitySelection,
         activity,
         epochTimestamp: dateObj.getTime(),

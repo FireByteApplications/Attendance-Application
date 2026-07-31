@@ -10,5 +10,5 @@ export function useCsrfToken(apiurl) {
       .catch(console.error);
   }, [apiurl]);
 
-  return token;               // '' until loaded
+  return token;
 }
