@@ -330,6 +330,148 @@ client.connect().then(() => {
     );
   };
 
+  function normalizeNameKey(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
+
+  function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function caseAndSpaceInsensitiveExactFilter(value: unknown) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  }
+
+  function normalizeRoleReportKey(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  }
+
+  function cleanRoleReportDisplayValue(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function escapeRoleReportRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function roleReportCaseAndSpaceInsensitiveFilter(
+    value: unknown
+  ) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRoleReportRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  }
+
+  function buildRoleReportQuery(
+    startEpoch: number,
+    endEpoch: number,
+    names: unknown,
+    roles: unknown
+  ) {
+    const query: any = {
+      epochTimestamp: {
+        $gte: startEpoch,
+        $lte: endEpoch,
+      },
+      roles: {
+        $exists: true,
+        $ne: [],
+      },
+    };
+
+    const selectionClauses: any[] = [];
+
+    if (Array.isArray(names) && names.length > 0) {
+      selectionClauses.push({
+        $or: names.map((selectedName: unknown) => ({
+          name: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedName
+          ),
+        })),
+      });
+    }
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      selectionClauses.push({
+        $or: roles.map((selectedRole: unknown) => ({
+          roles: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedRole
+          ),
+        })),
+      });
+    }
+
+    if (selectionClauses.length > 0) {
+      query.$and = selectionClauses;
+    }
+
+    return query;
+  }
+
+  function buildRoleReportDisplayMap(
+    values: unknown[]
+  ): Map<string, string> {
+    const displayByKey = new Map<string, string>();
+
+    for (const value of values) {
+      const key = normalizeRoleReportKey(value);
+
+      if (!key || displayByKey.has(key)) {
+        continue;
+      }
+
+      displayByKey.set(
+        key,
+        cleanRoleReportDisplayValue(value)
+      );
+    }
+
+    return displayByKey;
+  }
+
+  function roleReportRecordHasRoleKey(
+    record: any,
+    roleKey: string
+  ): boolean {
+    return (
+      Array.isArray(record.roles) &&
+      record.roles.some(
+        (recordRole: unknown) =>
+          normalizeRoleReportKey(recordRole) === roleKey
+      )
+    );
+  }
+
   async function sendXlsxResponse(
     res: Response,
     filename: string,
