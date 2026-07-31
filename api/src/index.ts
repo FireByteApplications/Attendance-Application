@@ -185,6 +185,148 @@ client.connect().then(() => {
     return null;
   }
 
+  function normalizeNameKey(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
+
+  function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function caseAndSpaceInsensitiveExactFilter(value: unknown) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  }
+
+  function normalizeRoleReportKey(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  }
+
+  function cleanRoleReportDisplayValue(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function escapeRoleReportRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function roleReportCaseAndSpaceInsensitiveFilter(
+    value: unknown
+  ) {
+    const parts = String(value ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(escapeRoleReportRegex);
+
+    return {
+      $regex:
+        parts.length > 0
+          ? `^\\s*${parts.join("\\s+")}\\s*$`
+          : "^\\s*$",
+      $options: "i",
+    };
+  }
+
+  function buildRoleReportQuery(
+    startEpoch: number,
+    endEpoch: number,
+    names: unknown,
+    roles: unknown
+  ) {
+    const query: any = {
+      epochTimestamp: {
+        $gte: startEpoch,
+        $lte: endEpoch,
+      },
+      roles: {
+        $exists: true,
+        $ne: [],
+      },
+    };
+
+    const selectionClauses: any[] = [];
+
+    if (Array.isArray(names) && names.length > 0) {
+      selectionClauses.push({
+        $or: names.map((selectedName: unknown) => ({
+          name: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedName
+          ),
+        })),
+      });
+    }
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      selectionClauses.push({
+        $or: roles.map((selectedRole: unknown) => ({
+          roles: roleReportCaseAndSpaceInsensitiveFilter(
+            selectedRole
+          ),
+        })),
+      });
+    }
+
+    if (selectionClauses.length > 0) {
+      query.$and = selectionClauses;
+    }
+
+    return query;
+  }
+
+  function buildRoleReportDisplayMap(
+    values: unknown[]
+  ): Map<string, string> {
+    const displayByKey = new Map<string, string>();
+
+    for (const value of values) {
+      const key = normalizeRoleReportKey(value);
+
+      if (!key || displayByKey.has(key)) {
+        continue;
+      }
+
+      displayByKey.set(
+        key,
+        cleanRoleReportDisplayValue(value)
+      );
+    }
+
+    return displayByKey;
+  }
+
+  function roleReportRecordHasRoleKey(
+    record: any,
+    roleKey: string
+  ): boolean {
+    return (
+      Array.isArray(record.roles) &&
+      record.roles.some(
+        (recordRole: unknown) =>
+          normalizeRoleReportKey(recordRole) === roleKey
+      )
+    );
+  }
+
   async function sendXlsxResponse(
     res: Response,
     filename: string,
@@ -645,10 +787,15 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     function getActivityDetails(record: any) {
       return {
         baType: record.details?.baType ?? record.baType,
-        chainsawType: record.details?.chainsawType ?? record.chainsawType,
-        deploymentType: record.details?.deploymentType ?? record.deploymentType,
-        deploymentLocation: record.details?.deploymentLocation ?? record.deploymentLocation,
-        otherType: record.details?.otherType ?? record.otherType,
+        chainsawType:
+          record.details?.chainsawType ?? record.chainsawType,
+        deploymentType:
+          record.details?.deploymentType ?? record.deploymentType,
+        deploymentLocation:
+          record.details?.deploymentLocation ??
+          record.deploymentLocation,
+        otherType:
+          record.details?.otherType ?? record.otherType,
       };
     }
 
@@ -661,136 +808,267 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       detailed,
       includeZeroAttendance,
     } = req.body;
+
     try {
       const MAX_SPAN = 1095 * 24 * 60 * 60 * 1000; // 3 years ms
-    if (endEpoch - startEpoch > MAX_SPAN) {
-      res.status(400).json({ message: 'Date range too large (max 3 years)' });
-      return;
-    }
 
-    const query: any = {
-      epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
-    };
-      if (name) query.name = name;
-      if (activity) query.activity = activity;
-      if (operational) query.operational = operational;
-      const MAX_ROWS = 50000;
-      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
-      const records = await recordsCursor.toArray();
-      if (records.length > MAX_ROWS) {
-        res
-        .status(413)
-        .json({ error: 'Result too large. Narrow date range or filters.' });
+      if (endEpoch - startEpoch > MAX_SPAN) {
+        res.status(400).json({
+          message: "Date range too large (max 3 years)",
+        });
         return;
       }
-      if(detailed === true){
-      const transformed = records.map(record => {
-        const details = getActivityDetails(record);
 
-        return {
-          ...record,
+      const query: any = {
+        epochTimestamp: {
+          $gte: startEpoch,
+          $lte: endEpoch,
+        },
+      };
 
-          timestampLocal: moment
-            .tz(record.epochTimestamp, "Australia/Sydney")
-            .format("DD-MM-YYYY HH:mm"),
+      if (name) {
+        query.name = caseAndSpaceInsensitiveExactFilter(name);
+      }
 
-          ...(details.baType && { baType: details.baType }),
-          ...(details.chainsawType && { chainsawType: details.chainsawType }),
-          ...(details.deploymentType && { deploymentType: details.deploymentType }),
-          ...(details.deploymentLocation && {
-            deploymentLocation: details.deploymentLocation,
-          }),
-          ...(details.otherType && { otherType: details.otherType }),
-        };
-      });
-      res.status(200).json({ count: transformed.length, records: transformed });
-      return;
-    } else {
+      if (activity) {
+        query.activity =
+          caseAndSpaceInsensitiveExactFilter(activity);
+      }
+
+      if (operational) {
+        query.operational =
+          caseAndSpaceInsensitiveExactFilter(operational);
+      }
+
+      const MAX_ROWS = 50000;
+
+      const recordsCursor = recordsCollection
+        .find(query)
+        .limit(MAX_ROWS + 1);
+
+      const records = await recordsCursor.toArray();
+
+      if (records.length > MAX_ROWS) {
+        res.status(413).json({
+          error:
+            "Result too large. Narrow date range or filters.",
+        });
+        return;
+      }
+
+      /*
+      * Detailed report-run mode returns the individual
+      * attendance records, as it did previously.
+      */
+      if (detailed === true) {
+        const transformed = records.map((record: any) => {
+          const details = getActivityDetails(record);
+
+          return {
+            ...record,
+
+            timestampLocal: moment
+              .tz(
+                record.epochTimestamp,
+                "Australia/Sydney"
+              )
+              .format("DD-MM-YYYY HH:mm"),
+
+            ...(details.baType && {
+              baType: details.baType,
+            }),
+
+            ...(details.chainsawType && {
+              chainsawType: details.chainsawType,
+            }),
+
+            ...(details.deploymentType && {
+              deploymentType: details.deploymentType,
+            }),
+
+            ...(details.deploymentLocation && {
+              deploymentLocation:
+                details.deploymentLocation,
+            }),
+
+            ...(details.otherType && {
+              otherType: details.otherType,
+            }),
+          };
+        });
+
+        res.status(200).json({
+          count: transformed.length,
+          records: transformed,
+        });
+        return;
+      }
+
+      /*
+      * Summary mode.
+      */
       const userDataMap = new Map<string, any>();
       const usersWithRecords = new Set<string>();
 
       const allUsers = await getCachedReportUsers();
 
-      const usersByName = new Map(
-        allUsers.map((user: any) => [user.name, user])
+      const usersByName = new Map<string, any>(
+        allUsers.map(
+          (user: any): [string, any] => [
+            normalizeNameKey(user.name),
+            user,
+          ]
+        )
       );
-       for (const record of records) {
-          const userName = record.name;
-          usersWithRecords.add(userName);
-            if (!userDataMap.has(userName)) {
-            const userDetails = usersByName.get(userName);
-            if (userDetails) {
-              userDataMap.set(userName, {
-                name: userName,
-                memberNumber: userDetails.id || '',
-                status: userDetails.member_status,
-                membership_classification: userDetails.membership_classification,
-                membership_type: userDetails.membership_type,
-                operationalActivities: 0,
-                nonOperationalActivities: 0,
-                records: []
-                });
-              }
-            }
-            const userStats = userDataMap.get(userName);
-            if (userStats) {
-              userStats.records.push({
-                operational: record.operational,
-                activity: record.activity,
-              });
-              if (record.operational === "Operational") userStats.operationalActivities++;
-              else if (record.operational === "Non-Operational") userStats.nonOperationalActivities++;
-            }
+
+      for (const record of records) {
+        const recordName = String(
+          record.name ?? ""
+        ).trim();
+
+        const userKey = normalizeNameKey(recordName);
+
+        usersWithRecords.add(userKey);
+
+        if (!userDataMap.has(userKey)) {
+          const userDetails = usersByName.get(userKey);
+
+          /*
+          * Do not discard attendance when an associated
+          * Usernames document cannot be found.
+          *
+          * When found, use the current canonical name from
+          * Usernames. Otherwise, use the record's name.
+          */
+          userDataMap.set(userKey, {
+            name: userDetails?.name ?? recordName,
+            memberNumber: userDetails?.id ?? "",
+            status:
+              userDetails?.member_status ?? "",
+            membership_classification:
+              userDetails?.membership_classification ?? "",
+            membership_type:
+              userDetails?.membership_type ?? "",
+            operationalActivities: 0,
+            nonOperationalActivities: 0,
+            records: [],
+          });
         }
-        if (includeZeroAttendance) {
-          const allUsers = await usersCollection.find({}).toArray();
-          for (const user of allUsers) {
-            if (!usersWithRecords.has(user.name)) {
-              userDataMap.set(user.name, {
-                name: user.name,
-                memberNumber: user.id || '',
-                status: user.member_status,
-                membership_classification: user.membership_classification,
-                membership_type: user.membership_type,
-                operationalActivities: 0,
-                nonOperationalActivities: 0,
-                records: []
-              });
-            }
-          } 
+
+        const userStats = userDataMap.get(userKey);
+
+        if (!userStats) {
+          continue;
         }
-      const dto = [...userDataMap].map(([user, v]) => ({
-        user,
-        memberNumber: v.memberNumber,
-        status: v.status,
-        membership_classification: v.membership_classification,
-        membership_type: v.membership_type,
-        operationalActivities: v.operationalActivities,
-        nonOperationalActivities: v.nonOperationalActivities,
-      }));
-      res.status(200).json(dto)
-    }
-    
+
+        userStats.records.push({
+          operational: record.operational,
+          activity: record.activity,
+        });
+
+        const operationalKey = String(
+          record.operational ?? ""
+        )
+          .trim()
+          .toLowerCase();
+
+        if (operationalKey === "operational") {
+          userStats.operationalActivities++;
+        } else if (
+          operationalKey === "non-operational"
+        ) {
+          userStats.nonOperationalActivities++;
+        }
+      }
+
+      if (includeZeroAttendance) {
+        /*
+        * Use the already-loaded user list and normalized keys.
+        * This prevents a user being shown as both attended and
+        * zero attendance because of capitalization differences.
+        */
+        for (const user of allUsers) {
+          const userKey = normalizeNameKey(user.name);
+
+          if (
+            !usersWithRecords.has(userKey) &&
+            !userDataMap.has(userKey)
+          ) {
+            userDataMap.set(userKey, {
+              name: user.name,
+              memberNumber: user.id || "",
+              status: user.member_status,
+              membership_classification:
+                user.membership_classification,
+              membership_type:
+                user.membership_type,
+              operationalActivities: 0,
+              nonOperationalActivities: 0,
+              records: [],
+            });
+          }
+        }
+      }
+
+      /*
+      * Use the stored canonical name, not the normalized
+      * lowercase map key, in the API response.
+      */
+      const dto = [...userDataMap.values()].map(
+        (user) => ({
+          user: user.name,
+          memberNumber: user.memberNumber,
+          status: user.status,
+          membership_classification:
+            user.membership_classification,
+          membership_type:
+            user.membership_type,
+          operationalActivities:
+            user.operationalActivities,
+          nonOperationalActivities:
+            user.nonOperationalActivities,
+        })
+      );
+
+      res.status(200).json(dto);
+      return;
     } catch (error) {
-      console.error('Unable to fetch records', (error as Error).message);
-      res.status(500).json({ message: "Unable to fetch records" });
+      console.error(
+        "Unable to fetch records",
+        (error as Error).message
+      );
+
+      res.status(500).json({
+        message: "Unable to fetch records",
+      });
       return;
     }
-  }
-  app.post('/api/reports/run', limit.reportRunLimiter, requireAdmin, sanitise.sanitizeReportingRunInput,  reportRun)
+  };
+  app.post('/api/reports/run', limit.reportRunLimiter, requireAdmin, sanitise.sanitizeReportingRunInput, reportRun);
 
-  const reportExport: RequestHandler = async (req, res) => {
+  const reportExport: RequestHandler = async (
+    req,
+    res
+  ) => {
     const authedReq = req as AuthedRequest;
     authedReq.user = authedReq.session.user;
 
     function getActivityDetails(record: any) {
       return {
-        baType: record.details?.baType ?? record.baType,
-        chainsawType: record.details?.chainsawType ?? record.chainsawType,
-        deploymentType: record.details?.deploymentType ?? record.deploymentType,
+        baType:
+          record.details?.baType ?? record.baType,
+        chainsawType:
+          record.details?.chainsawType ??
+          record.chainsawType,
+        deploymentType:
+          record.details?.deploymentType ??
+          record.deploymentType,
         deploymentLocation:
-          record.details?.deploymentLocation ?? record.deploymentLocation,
-        otherType: record.details?.otherType ?? record.otherType,
+          record.details?.deploymentLocation ??
+          record.deploymentLocation,
+        otherType:
+          record.details?.otherType ??
+          record.otherType,
       };
     }
 
@@ -807,150 +1085,214 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
     } = req.body;
 
     try {
-      const query: any = {
-        epochTimestamp: { $gte: startEpoch, $lte: endEpoch },
-      };
+      /*
+      * Apply the same maximum range restriction as reportRun.
+      */
+      const MAX_SPAN =
+        1095 * 24 * 60 * 60 * 1000; // 3 years ms
 
-      if (name) query.name = name;
-      if (activity) query.activity = activity;
-      if (operational) query.operational = operational;
-
-      const MAX_ROWS = 50000;
-
-      const recordsCursor = recordsCollection.find(query).limit(MAX_ROWS + 1);
-      const records = await recordsCursor.toArray();
-
-      if (records.length > MAX_ROWS) {
-        res.status(413).json({
-          error: "Result too large. Narrow date range or filters.",
+      if (endEpoch - startEpoch > MAX_SPAN) {
+        res.status(400).json({
+          message: "Date range too large (max 3 years)",
         });
         return;
       }
 
-      const userDataMap = new Map<string, any>();
-      const userNoAttendanceDataMap = new Map<string, any>();
-      const usersWithRecords = new Set<string>();
+      const query: any = {
+        epochTimestamp: {
+          $gte: startEpoch,
+          $lte: endEpoch,
+        },
+      };
 
-      const allUsers = await getCachedReportUsers();
+      if (name) {
+        query.name =
+          caseAndSpaceInsensitiveExactFilter(name);
+      }
 
-      const usersByName = new Map(
-        allUsers.map((user: any) => [user.name, user])
+      if (activity) {
+        query.activity =
+          caseAndSpaceInsensitiveExactFilter(activity);
+      }
+
+      if (operational) {
+        query.operational =
+          caseAndSpaceInsensitiveExactFilter(
+            operational
+          );
+      }
+
+      const MAX_ROWS = 50000;
+
+      const recordsCursor = recordsCollection
+        .find(query)
+        .limit(MAX_ROWS + 1);
+
+      const records =
+        await recordsCursor.toArray();
+
+      if (records.length > MAX_ROWS) {
+        res.status(413).json({
+          error:
+            "Result too large. Narrow date range or filters.",
+        });
+        return;
+      }
+
+      const userDataMap =
+        new Map<string, any>();
+
+      const userNoAttendanceDataMap =
+        new Map<string, any>();
+
+      const usersWithRecords =
+        new Set<string>();
+
+      const allUsers =
+        await getCachedReportUsers();
+
+      const usersByName = new Map<string, any>(
+        allUsers.map(
+          (user: any): [string, any] => [
+            normalizeNameKey(user.name),
+            user,
+          ]
+        )
       );
 
       for (const record of records) {
-        const userName = record.name;
-        usersWithRecords.add(userName);
+        const recordName = String(
+          record.name ?? ""
+        ).trim();
+
+        const userKey =
+          normalizeNameKey(recordName);
+
+        usersWithRecords.add(userKey);
+
+        if (!userDataMap.has(userKey)) {
+          const userDetails =
+            usersByName.get(userKey);
+
+          /*
+          * Keep records even when there is no matching
+          * Usernames document.
+          */
+          userDataMap.set(userKey, {
+            name:
+              userDetails?.name ?? recordName,
+            memberNumber:
+              userDetails?.id ?? "",
+            status:
+              userDetails?.member_status ?? "",
+            Membership_Classification:
+              userDetails?.membership_classification ??
+              "",
+            membership_type:
+              userDetails?.membership_type ?? "",
+
+            ...(detailed === false && {
+              operationalActivities: 0,
+              nonOperationalActivities: 0,
+            }),
+
+            records: [],
+          });
+        }
+
+        const userStats =
+          userDataMap.get(userKey);
+
+        if (!userStats) {
+          continue;
+        }
+
+        const details =
+          getActivityDetails(record);
+
+        userStats.records.push({
+          timestampLocal: moment
+            .tz(
+              record.epochTimestamp,
+              "Australia/Sydney"
+            )
+            .format("DD-MM-YYYY HH:mm"),
+
+          operational: record.operational,
+          activity: record.activity,
+
+          ...(details.baType && {
+            baType: details.baType,
+          }),
+
+          ...(details.chainsawType && {
+            chainsawType:
+              details.chainsawType,
+          }),
+
+          ...(details.deploymentType && {
+            deploymentType:
+              details.deploymentType,
+          }),
+
+          ...(details.otherType && {
+            otherType: details.otherType,
+          }),
+
+          ...(details.deploymentLocation && {
+            deploymentLocation:
+              details.deploymentLocation,
+          }),
+        });
 
         if (detailed === false) {
-          if (!userDataMap.has(userName)) {
-            const userDetails = usersByName.get(userName);
+          const operationalKey = String(
+            record.operational ?? ""
+          )
+            .trim()
+            .toLowerCase();
 
-            if (userDetails) {
-              userDataMap.set(userName, {
-                name: userName,
-                memberNumber: userDetails.id || "",
-                status: userDetails.member_status,
-                Membership_Classification:
-                  userDetails.membership_classification,
-                membership_type: userDetails.membership_type,
-                operationalActivities: 0,
-                nonOperationalActivities: 0,
-                records: [],
-              });
-            }
-          }
-
-          const details = getActivityDetails(record);
-          const userStats = userDataMap.get(userName);
-
-          if (userStats) {
-            userStats.records.push({
-              timestampLocal: moment
-                .tz(record.epochTimestamp, "Australia/Sydney")
-                .format("DD-MM-YYYY HH:mm"),
-
-              operational: record.operational,
-              activity: record.activity,
-
-              ...(details.baType && { baType: details.baType }),
-              ...(details.chainsawType && {
-                chainsawType: details.chainsawType,
-              }),
-              ...(details.deploymentType && {
-                deploymentType: details.deploymentType,
-              }),
-              ...(details.otherType && { otherType: details.otherType }),
-              ...(details.deploymentLocation && {
-                deploymentLocation: details.deploymentLocation,
-              }),
-            });
-
-            if (record.operational === "Operational") {
-              userStats.operationalActivities++;
-            } else if (record.operational === "Non-Operational") {
-              userStats.nonOperationalActivities++;
-            }
-          }
-        } else if (detailed === true) {
-          if (!userDataMap.has(userName)) {
-            const userDetails = usersByName.get(userName);
-
-            if (userDetails) {
-              userDataMap.set(userName, {
-                name: userName,
-                memberNumber: userDetails.id || "",
-                status: userDetails.member_status,
-                Membership_Classification:
-                  userDetails.membership_classification,
-                membership_type: userDetails.membership_type,
-                records: [],
-              });
-            }
-          }
-
-          const details = getActivityDetails(record);
-          const userStats = userDataMap.get(userName);
-
-          if (userStats) {
-            userStats.records.push({
-              timestampLocal: moment
-                .tz(record.epochTimestamp, "Australia/Sydney")
-                .format("DD-MM-YYYY HH:mm"),
-
-              operational: record.operational,
-              activity: record.activity,
-
-              ...(details.baType && { baType: details.baType }),
-              ...(details.chainsawType && {
-                chainsawType: details.chainsawType,
-              }),
-              ...(details.deploymentType && {
-                deploymentType: details.deploymentType,
-              }),
-              ...(details.otherType && { otherType: details.otherType }),
-              ...(details.deploymentLocation && {
-                deploymentLocation: details.deploymentLocation,
-              }),
-            });
+          if (
+            operationalKey === "operational"
+          ) {
+            userStats.operationalActivities++;
+          } else if (
+            operationalKey ===
+            "non-operational"
+          ) {
+            userStats.nonOperationalActivities++;
           }
         }
       }
 
-      if (detailed === false && includeZeroAttendance) {
-        const allUsers = await usersCollection.find({}).toArray();
-
+      if (
+        detailed === false &&
+        includeZeroAttendance
+      ) {
+        /*
+        * Check zero attendance using normalized keys,
+        * using the same cached user list.
+        */
         for (const user of allUsers) {
-          if (!usersWithRecords.has(user.name)) {
-            userNoAttendanceDataMap.set(user.name, {
-              name: user.name,
-              memberNumber: user.id || "",
-              status: user.member_status,
-              Membership_Classification: user.membership_classification,
-              membership_type: user.membership_type,
-              operationalActivities: 0,
-              nonOperationalActivities: 0,
-              records: [],
-            });
+          const userKey =
+            normalizeNameKey(user.name);
+
+          if (!usersWithRecords.has(userKey)) {
+            userNoAttendanceDataMap.set(
+              userKey,
+              {
+                name: user.name,
+                memberNumber: user.id || "",
+                status: user.member_status,
+                Membership_Classification:
+                  user.membership_classification,
+                membership_type:
+                  user.membership_type,
+                operationalActivities: 0,
+                nonOperationalActivities: 0,
+                records: [],
+              }
+            );
           }
         }
       }
@@ -980,16 +1322,23 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           ]);
         });
 
-        userNoAttendanceDataMap.forEach((user: any) => {
-          rows.push([
-            user.name,
-            user.memberNumber,
-            user.status,
-            user.Membership_Classification,
-            user.membership_type,
-            "Zero Attendance",
-          ]);
-        });
+        userNoAttendanceDataMap.forEach(
+          (user: any) => {
+            /*
+            * Keep all seven columns aligned with
+            * the seven report headers.
+            */
+            rows.push([
+              user.name,
+              user.memberNumber,
+              user.status,
+              user.Membership_Classification,
+              user.membership_type,
+              0,
+              0,
+            ]);
+          }
+        );
       } else if (detailed === true) {
         rows.push([
           "Timestamp",
@@ -1009,18 +1358,40 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             let activityType = "";
             let activityLocation = "";
 
-            if (record.activity === "BA-Checks") {
-              activityType = record.baType || "";
-            } else if (record.activity === "Chainsaw-Checks") {
-              activityType = record.chainsawType || "";
+            /*
+            * Case-insensitive activity comparison
+            * for selecting activity details.
+            */
+            const activityKey = String(
+              record.activity ?? ""
+            )
+              .trim()
+              .toLowerCase();
+
+            if (activityKey === "ba-checks") {
+              activityType =
+                record.baType || "";
             } else if (
-              record.activity === "Other-Non-operational" ||
-              record.activity === "Other-operational"
+              activityKey === "chainsaw-checks"
             ) {
-              activityType = record.otherType || "";
-            } else if (record.activity === "Deployment") {
-              activityType = record.deploymentType || "";
-              activityLocation = record.deploymentLocation || "";
+              activityType =
+                record.chainsawType || "";
+            } else if (
+              activityKey ===
+                "other-non-operational" ||
+              activityKey ===
+                "other-operational"
+            ) {
+              activityType =
+                record.otherType || "";
+            } else if (
+              activityKey === "deployment"
+            ) {
+              activityType =
+                record.deploymentType || "";
+
+              activityLocation =
+                record.deploymentLocation || "";
             }
 
             rows.push([
@@ -1039,24 +1410,45 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         });
       } else {
         res.status(400).json({
-          error: "Invalid report detail option.",
+          error:
+            "Invalid report detail option.",
         });
         return;
       }
 
       removeEmptyColumns(rows, 0, 1);
 
-      const fallbackFormat = (epoch: number) =>
-        new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
+      const fallbackFormat = (
+        epoch: number
+      ) =>
+        new Date(epoch)
+          .toISOString()
+          .slice(0, 10)
+          .replace(/-/g, "");
 
-      const fileStart = formattedStart || fallbackFormat(startEpoch);
-      const fileEnd = formattedEnd || fallbackFormat(endEpoch);
-      const filename = `member-attendance-report-${fileStart}-${fileEnd}.xlsx`;
+      const fileStart =
+        formattedStart ||
+        fallbackFormat(startEpoch);
 
-      await sendXlsxResponse(res, filename, rows);
+      const fileEnd =
+        formattedEnd ||
+        fallbackFormat(endEpoch);
+
+      const filename =
+        `member-attendance-report-` +
+        `${fileStart}-${fileEnd}.xlsx`;
+
+      await sendXlsxResponse(
+        res,
+        filename,
+        rows
+      );
       return;
     } catch (error) {
-      console.error("Error generating Excel report", error);
+      console.error(
+        "Error generating Excel report",
+        error
+      );
 
       res.status(500).json({
         error: "Failed to export report",
@@ -1064,8 +1456,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       return;
     }
   };
-  app.post("/api/reports/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeReportingExportInput,  reportExport);
-
+  app.post("/api/reports/export", limit.reportExportLimiter, requireAdmin, sanitise.sanitizeReportingExportInput, reportExport);
+  
   const CheckUsername: RequestHandler = async (req, res) => {
   try {
     const rawUsernames: unknown[] = Array.isArray(req.body.usernames)
@@ -1156,7 +1548,7 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       message: "Unable to check usernames.",
     });
   }
-};
+  };
   app.post('/api/attendance/checkUser', limit.usernameCheckLimiter, sanitise.sanitizeCheckUsernameInput, CheckUsername)
 
   const submitAttendance: RequestHandler = async (req, res) => {
@@ -1956,88 +2348,175 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.post("/api/attendance/roleAssignment/addAttendance", limit.roleUpdateLimiter, requireRoleAssignmentPin, sanitise.sanitizeAddEventAttendanceBody, addEventAttendance);
 
-  const roleReportRun: RequestHandler = async (req, res) => {
+  const roleReportRun: RequestHandler = async (
+    req,
+    res
+  ) => {
     try {
-      const { startEpoch, endEpoch, names, roles } = req.body;
+      const {
+        startEpoch,
+        endEpoch,
+        names,
+        roles,
+      } = req.body;
 
-      const query: any = {
-        epochTimestamp: {
-          $gte: startEpoch,
-          $lte: endEpoch,
-        },
-        roles: {
-          $exists: true,
-          $ne: [],
-        },
-      };
+      const hasMembersSelected =
+        Array.isArray(names) && names.length > 0;
 
-      if (Array.isArray(names) && names.length > 0) {
-        query.name = {
-          $in: names,
-        };
+      const hasRolesSelected =
+        Array.isArray(roles) && roles.length > 0;
+
+      if (
+        !Number.isFinite(startEpoch) ||
+        !Number.isFinite(endEpoch) ||
+        endEpoch < startEpoch
+      ) {
+        return res.status(400).json({
+          message: "Invalid date range.",
+        });
       }
 
-      if (Array.isArray(roles) && roles.length > 0) {
-        query.roles = {
-          $exists: true,
-          $ne: [],
-          $in: roles,
-        };
+      const MAX_SPAN =
+        1095 * 24 * 60 * 60 * 1000;
+
+      if (endEpoch - startEpoch > MAX_SPAN) {
+        return res.status(400).json({
+          message:
+            "Date range too large. Maximum range is 3 years.",
+        });
       }
+
+      if (
+        !hasMembersSelected &&
+        !hasRolesSelected
+      ) {
+        return res.status(400).json({
+          message:
+            "At least one member or role must be selected.",
+        });
+      }
+
+      const query = buildRoleReportQuery(
+        startEpoch,
+        endEpoch,
+        names,
+        roles
+      );
 
       const MAX_ROWS = 5000;
 
       const records = await recordsCollection
-        .find(
-          query,
-          {
-            projection: {
-              _id: 0,
-              name: 1,
-              eventNumber: 1,
-              operational: 1,
-              activity: 1,
-              roles: 1,
-              epochTimestamp: 1,
-            },
-          }
-        )
+        .find(query, {
+          projection: {
+            _id: 0,
+            name: 1,
+            eventNumber: 1,
+            operational: 1,
+            activity: 1,
+            roles: 1,
+            epochTimestamp: 1,
+          },
+        })
         .limit(MAX_ROWS + 1)
         .toArray();
 
       if (records.length > MAX_ROWS) {
         return res.status(413).json({
-          message: "Result too large. Narrow date range or selected members.",
+          message:
+            "Result too large. Narrow date range or selected members.",
         });
       }
 
       records.sort((a: any, b: any) => {
-        const timeA = Number(a.epochTimestamp ?? 0);
-        const timeB = Number(b.epochTimestamp ?? 0);
+        const timeA = Number(
+          a.epochTimestamp ?? 0
+        );
 
-        if (timeA !== timeB) return timeA - timeB;
+        const timeB = Number(
+          b.epochTimestamp ?? 0
+        );
 
-        return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+        if (timeA !== timeB) {
+          return timeA - timeB;
+        }
+
+        return normalizeRoleReportKey(
+          a.name
+        ).localeCompare(
+          normalizeRoleReportKey(b.name)
+        );
       });
 
-      const dto = records.map((record: any) => ({
-        name: record.name,
-        eventNumber: record.eventNumber ?? "",
-        operational: record.operational ?? "",
-        activity: record.activity ?? "",
-        roles: Array.isArray(record.roles) ? record.roles : [],
-        epochTimestamp: record.epochTimestamp,
-        timestampLocal: moment
-          .tz(record.epochTimestamp, "Australia/Sydney")
-          .format("DD-MM-YYYY HH:mm"),
-      }));
+      /*
+      * Selected member names normally come from Usernames,
+      * so use them as the canonical display values.
+      */
+      const selectedNameByKey =
+        buildRoleReportDisplayMap(
+          hasMembersSelected ? names : []
+        );
+
+      const dto = records.map((record: any) => {
+        const recordName =
+          cleanRoleReportDisplayValue(
+            record.name
+          );
+
+        const userKey =
+          normalizeRoleReportKey(recordName);
+
+        return {
+          name:
+            selectedNameByKey.get(userKey) ??
+            recordName,
+
+          eventNumber:
+            cleanRoleReportDisplayValue(
+              record.eventNumber
+            ),
+
+          operational:
+            cleanRoleReportDisplayValue(
+              record.operational
+            ),
+
+          activity:
+            cleanRoleReportDisplayValue(
+              record.activity
+            ),
+
+          /*
+          * Preserve all roles on the attendance record,
+          * as the original endpoint did.
+          */
+          roles: Array.isArray(record.roles)
+            ? record.roles.map(
+                (role: unknown) =>
+                  cleanRoleReportDisplayValue(role)
+              )
+            : [],
+
+          epochTimestamp:
+            record.epochTimestamp,
+
+          timestampLocal: moment
+            .tz(
+              record.epochTimestamp,
+              "Australia/Sydney"
+            )
+            .format("DD-MM-YYYY HH:mm"),
+        };
+      });
 
       return res.status(200).json({
         count: dto.length,
         records: dto,
       });
     } catch (error) {
-      console.error("Error running role report:", error);
+      console.error(
+        "Error running role report:",
+        error
+      );
 
       return res.status(500).json({
         message: "Failed to run role report.",
@@ -2046,7 +2525,10 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
   };
   app.post("/api/reports/roles/run", limit.reportRunLimiter, requireAdmin, sanitise.sanitizeRoleReportRunInput, roleReportRun);
 
-  const roleReportExport: RequestHandler = async (req, res) => {
+  const roleReportExport: RequestHandler = async (
+    req,
+    res
+  ) => {
     try {
       const {
         startEpoch,
@@ -2057,39 +2539,48 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         formattedEnd,
       } = req.body;
 
-      const hasMembersSelected = Array.isArray(names) && names.length > 0;
-      const hasRolesSelected = Array.isArray(roles) && roles.length > 0;
+      const hasMembersSelected =
+        Array.isArray(names) && names.length > 0;
 
-      if (!hasMembersSelected && !hasRolesSelected) {
+      const hasRolesSelected =
+        Array.isArray(roles) && roles.length > 0;
+
+      if (
+        !Number.isFinite(startEpoch) ||
+        !Number.isFinite(endEpoch) ||
+        endEpoch < startEpoch
+      ) {
         return res.status(400).json({
-          message: "At least one member or role must be selected.",
+          message: "Invalid date range.",
         });
       }
 
-      const query: any = {
-        epochTimestamp: {
-          $gte: startEpoch,
-          $lte: endEpoch,
-        },
-        roles: {
-          $exists: true,
-          $ne: [],
-        },
-      };
+      const MAX_SPAN =
+        1095 * 24 * 60 * 60 * 1000;
 
-      if (hasMembersSelected) {
-        query.name = {
-          $in: names,
-        };
+      if (endEpoch - startEpoch > MAX_SPAN) {
+        return res.status(400).json({
+          message:
+            "Date range too large. Maximum range is 3 years.",
+        });
       }
 
-      if (hasRolesSelected) {
-        query.roles = {
-          $exists: true,
-          $ne: [],
-          $in: roles,
-        };
+      if (
+        !hasMembersSelected &&
+        !hasRolesSelected
+      ) {
+        return res.status(400).json({
+          message:
+            "At least one member or role must be selected.",
+        });
       }
+
+      const query = buildRoleReportQuery(
+        startEpoch,
+        endEpoch,
+        names,
+        roles
+      );
 
       const MAX_ROWS = 5000;
 
@@ -2110,29 +2601,86 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       if (records.length === 0) {
         return res.status(404).json({
-          message: "No role records found to export.",
+          message:
+            "No role records found to export.",
         });
       }
 
       if (records.length > MAX_ROWS) {
         return res.status(413).json({
-          message: "Result too large. Narrow date range or selected filters.",
+          message:
+            "Result too large. Narrow date range or selected filters.",
         });
       }
 
       records.sort((a: any, b: any) => {
-        const timeA = Number(a.epochTimestamp ?? 0);
-        const timeB = Number(b.epochTimestamp ?? 0);
+        const timeA = Number(
+          a.epochTimestamp ?? 0
+        );
 
-        if (timeA !== timeB) return timeA - timeB;
+        const timeB = Number(
+          b.epochTimestamp ?? 0
+        );
 
-        return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+        if (timeA !== timeB) {
+          return timeA - timeB;
+        }
+
+        return normalizeRoleReportKey(
+          a.name
+        ).localeCompare(
+          normalizeRoleReportKey(b.name)
+        );
       });
 
+      const selectedNameByKey =
+        buildRoleReportDisplayMap(
+          hasMembersSelected ? names : []
+        );
+
+      const selectedRoleByKey =
+        buildRoleReportDisplayMap(
+          hasRolesSelected ? roles : []
+        );
+
+      const getMemberDisplayName = (
+        value: unknown
+      ): string => {
+        const cleaned =
+          cleanRoleReportDisplayValue(value);
+
+        return (
+          selectedNameByKey.get(
+            normalizeRoleReportKey(cleaned)
+          ) ?? cleaned
+        );
+      };
+
+      const getRoleDisplayName = (
+        value: unknown
+      ): string => {
+        const cleaned =
+          cleanRoleReportDisplayValue(value);
+
+        return (
+          selectedRoleByKey.get(
+            normalizeRoleReportKey(cleaned)
+          ) ?? cleaned
+        );
+      };
+
+      /*
+      * Event numbers remain identifiers, but both sides are
+      * trimmed and normalized for the map lookup.
+      */
       const eventNumbers = Array.from(
         new Set<string>(
           records
-            .map((record: any) => String(record.eventNumber ?? "").trim())
+            .map((record: any) =>
+              cleanRoleReportDisplayValue(
+                record.eventNumber
+              )
+            )
             .filter(Boolean)
         )
       );
@@ -2157,22 +2705,55 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
               .toArray()
           : [];
 
-      const eventDescriptionByNumber = new Map<string, string>(
-        eventDocs.map((event: any) => [
-          String(event.eventNumber),
-          String(event.description ?? ""),
-        ])
-      );
+      const eventDescriptionByNumber =
+        new Map<string, string>();
 
-      const getEventLine = (record: any) => {
-        const eventNumber = String(record.eventNumber ?? "");
+      for (const event of eventDocs) {
+        const eventKey =
+          normalizeRoleReportKey(
+            event.eventNumber
+          );
+
+        if (!eventKey) {
+          continue;
+        }
+
+        eventDescriptionByNumber.set(
+          eventKey,
+          cleanRoleReportDisplayValue(
+            event.description
+          )
+        );
+      }
+
+      const getEventLine = (
+        record: any
+      ): string => {
+        const eventNumber =
+          cleanRoleReportDisplayValue(
+            record.eventNumber
+          );
+
+        const eventKey =
+          normalizeRoleReportKey(eventNumber);
+
+        const activity =
+          cleanRoleReportDisplayValue(
+            record.activity
+          );
+
         const eventDescription =
-          eventDescriptionByNumber.get(eventNumber) ||
-          record.activity ||
+          eventDescriptionByNumber.get(
+            eventKey
+          ) ||
+          activity ||
           "Event";
 
         const date = moment
-          .tz(record.epochTimestamp, "Australia/Sydney")
+          .tz(
+            record.epochTimestamp,
+            "Australia/Sydney"
+          )
           .format("DD-MM-YYYY HH:mm");
 
         return `${date}, ${eventDescription}`;
@@ -2180,19 +2761,17 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
 
       let rows: XlsxRow[] = [];
 
-      if (!hasMembersSelected && hasRolesSelected) {
-        /**
-         * ROLE REPORT
-         *
-         * Role assigned
-         *   Member
-         *     Events
-         *
-         * Role
-         *   Member
-         *     Date, eventDescription
-         */
-
+      /*
+      * Role-only report:
+      *
+      * Role
+      *   Member
+      *     Events
+      */
+      if (
+        !hasMembersSelected &&
+        hasRolesSelected
+      ) {
         rows = [
           [
             {
@@ -2215,82 +2794,150 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           [null],
         ];
 
-        const roleOrder = roles.filter((role: string) =>
-          records.some(
-            (record: any) =>
-              Array.isArray(record.roles) && record.roles.includes(role)
+        /*
+        * Preserve the selected role order while comparing
+        * roles case- and whitespace-insensitively.
+        */
+        const roleOrder = Array.from(
+          selectedRoleByKey.entries()
+        )
+          .filter(([roleKey]) =>
+            records.some((record: any) =>
+              roleReportRecordHasRoleKey(
+                record,
+                roleKey
+              )
+            )
           )
-        );
+          .map(([roleKey, roleName]) => ({
+            roleKey,
+            roleName,
+          }));
 
-        for (const role of roleOrder) {
+        for (const {
+          roleKey,
+          roleName,
+        } of roleOrder) {
           rows.push([
             {
-              value: role,
+              value: roleName,
               fontWeight: "bold",
             },
           ]);
 
+          /*
+          * Group capitalization and spacing variants of the
+          * same member under one normalized member key.
+          */
+          const memberByKey =
+            new Map<string, string>();
 
-          const memberNames = Array.from(
-            new Set<string>(
+          for (const record of records) {
+            if (
+              !roleReportRecordHasRoleKey(
+                record,
+                roleKey
+              )
+            ) {
+              continue;
+            }
+
+            const memberKey =
+              normalizeRoleReportKey(
+                record.name
+              );
+
+            if (
+              !memberKey ||
+              memberByKey.has(memberKey)
+            ) {
+              continue;
+            }
+
+            memberByKey.set(
+              memberKey,
+              getMemberDisplayName(
+                record.name
+              )
+            );
+          }
+
+          const memberOrder = Array.from(
+            memberByKey.entries()
+          )
+            .map(
+              ([memberKey, memberName]) => ({
+                memberKey,
+                memberName,
+              })
+            )
+            .sort((a, b) =>
+              a.memberName.localeCompare(
+                b.memberName,
+                undefined,
+                {
+                  sensitivity: "base",
+                }
+              )
+            );
+
+          for (const {
+            memberKey,
+            memberName,
+          } of memberOrder) {
+            rows.push([
+              {
+                value: memberName,
+                indent: 1,
+              },
+            ]);
+
+            const memberRoleRecords =
               records
                 .filter(
                   (record: any) =>
-                    Array.isArray(record.roles) && record.roles.includes(role)
+                    normalizeRoleReportKey(
+                      record.name
+                    ) === memberKey &&
+                    roleReportRecordHasRoleKey(
+                      record,
+                      roleKey
+                    )
                 )
-                .map((record: any) => String(record.name ?? ""))
-                .filter(Boolean)
-            )
-          ).sort((a, b) => a.localeCompare(b));
+                .sort(
+                  (a: any, b: any) =>
+                    Number(
+                      a.epochTimestamp ?? 0
+                    ) -
+                    Number(
+                      b.epochTimestamp ?? 0
+                    )
+                );
 
-          for (const memberName of memberNames) {
-            rows.push([
-            {
-              value: memberName,
-              indent: 1,
-            },
-          ]);
-
-
-            const memberRoleRecords = records
-              .filter(
-                (record: any) =>
-                  record.name === memberName &&
-                  Array.isArray(record.roles) &&
-                  record.roles.includes(role)
-              )
-              .sort(
-                (a: any, b: any) =>
-                  Number(a.epochTimestamp ?? 0) -
-                  Number(b.epochTimestamp ?? 0)
-              );
-
-            for (const record of memberRoleRecords) {
+            for (
+              const record of memberRoleRecords
+            ) {
               rows.push([
-              {
-                value: getEventLine(record),
-                indent: 2,
-                wrap: true,
-              },
-            ]);
+                {
+                  value:
+                    getEventLine(record),
+                  indent: 2,
+                  wrap: true,
+                },
+              ]);
             }
           }
 
           rows.push([""]);
         }
       } else {
-        /**
-         * MEMBER REPORT
-         *
-         * Member
-         *   Role performed
-         *     Events
-         *
-         * Member
-         *   Role
-         *     Date, eventDescription
-         */
-
+        /*
+        * Member report:
+        *
+        * Member
+        *   Role
+        *     Events
+        */
         rows = [
           [
             {
@@ -2313,73 +2960,196 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
           [null],
         ];
 
-        const memberOrder = hasMembersSelected
-          ? names.filter((name: string) =>
-              records.some((record: any) => record.name === name)
-            )
-          : Array.from(
-              new Set<string>(
-                records
-                  .map((record: any) => String(record.name ?? ""))
-                  .filter(Boolean)
+        let memberOrder: Array<{
+          memberKey: string;
+          memberName: string;
+        }>;
+
+        if (hasMembersSelected) {
+          /*
+          * Preserve selected member order.
+          */
+          memberOrder = Array.from(
+            selectedNameByKey.entries()
+          )
+            .filter(([memberKey]) =>
+              records.some(
+                (record: any) =>
+                  normalizeRoleReportKey(
+                    record.name
+                  ) === memberKey
               )
-            ).sort((a, b) => a.localeCompare(b));
+            )
+            .map(
+              ([memberKey, memberName]) => ({
+                memberKey,
+                memberName,
+              })
+            );
+        } else {
+          const memberByKey =
+            new Map<string, string>();
 
-        for (const memberName of memberOrder) {
-          rows.push([
-          {
-            value: memberName,
-            fontWeight: "bold",
-          },
-        ]);
+          for (const record of records) {
+            const memberKey =
+              normalizeRoleReportKey(
+                record.name
+              );
 
-          const memberRecords = records.filter(
-            (record: any) => record.name === memberName
-          );
+            if (
+              !memberKey ||
+              memberByKey.has(memberKey)
+            ) {
+              continue;
+            }
 
-          const roleOrder = Array.from(
-            new Set<string>(
-              memberRecords.flatMap((record: any) => {
-                if (!Array.isArray(record.roles)) return [];
+            memberByKey.set(
+              memberKey,
+              getMemberDisplayName(
+                record.name
+              )
+            );
+          }
 
-                return record.roles
-                  .map((role: unknown) => String(role))
-                  .filter((role: string) => {
-                    if (!hasRolesSelected) return true;
-
-                    return roles.includes(role);
-                  });
+          memberOrder = Array.from(
+            memberByKey.entries()
+          )
+            .map(
+              ([memberKey, memberName]) => ({
+                memberKey,
+                memberName,
               })
             )
-          ).sort((a, b) => a.localeCompare(b));
+            .sort((a, b) =>
+              a.memberName.localeCompare(
+                b.memberName,
+                undefined,
+                {
+                  sensitivity: "base",
+                }
+              )
+            );
+        }
 
-          for (const role of roleOrder) {
-            rows.push([
+        for (const {
+          memberKey,
+          memberName,
+        } of memberOrder) {
+          rows.push([
             {
-              value: role,
-              indent: 1,
+              value: memberName,
+              fontWeight: "bold",
             },
           ]);
 
-            const roleRecords = memberRecords
-              .filter(
-                (record: any) =>
-                  Array.isArray(record.roles) && record.roles.includes(role)
+          const memberRecords =
+            records.filter(
+              (record: any) =>
+                normalizeRoleReportKey(
+                  record.name
+                ) === memberKey
+            );
+
+          /*
+          * Group role capitalization/spacing variants and
+          * retain the selected canonical role name when one
+          * was selected.
+          */
+          const roleByKey =
+            new Map<string, string>();
+
+          for (const record of memberRecords) {
+            if (!Array.isArray(record.roles)) {
+              continue;
+            }
+
+            for (
+              const recordRole of record.roles
+            ) {
+              const roleKey =
+                normalizeRoleReportKey(
+                  recordRole
+                );
+
+              if (!roleKey) {
+                continue;
+              }
+
+              if (
+                hasRolesSelected &&
+                !selectedRoleByKey.has(roleKey)
+              ) {
+                continue;
+              }
+
+              if (!roleByKey.has(roleKey)) {
+                roleByKey.set(
+                  roleKey,
+                  getRoleDisplayName(
+                    recordRole
+                  )
+                );
+              }
+            }
+          }
+
+          const roleOrder = Array.from(
+            roleByKey.entries()
+          )
+            .map(
+              ([roleKey, roleName]) => ({
+                roleKey,
+                roleName,
+              })
+            )
+            .sort((a, b) =>
+              a.roleName.localeCompare(
+                b.roleName,
+                undefined,
+                {
+                  sensitivity: "base",
+                }
               )
-              .sort(
-                (a: any, b: any) =>
-                  Number(a.epochTimestamp ?? 0) -
-                  Number(b.epochTimestamp ?? 0)
-              );
+            );
+
+          for (const {
+            roleKey,
+            roleName,
+          } of roleOrder) {
+            rows.push([
+              {
+                value: roleName,
+                indent: 1,
+              },
+            ]);
+
+            const roleRecords =
+              memberRecords
+                .filter((record: any) =>
+                  roleReportRecordHasRoleKey(
+                    record,
+                    roleKey
+                  )
+                )
+                .sort(
+                  (a: any, b: any) =>
+                    Number(
+                      a.epochTimestamp ?? 0
+                    ) -
+                    Number(
+                      b.epochTimestamp ?? 0
+                    )
+                );
 
             for (const record of roleRecords) {
               rows.push([
-              {
-                value: getEventLine(record),
-                indent: 2,
-                wrap: true,
-              },
-            ]);
+                {
+                  value:
+                    getEventLine(record),
+                  indent: 2,
+                  wrap: true,
+                },
+              ]);
             }
           }
 
@@ -2387,24 +3157,48 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         }
       }
 
-      const fallbackFormat = (epoch: number) =>
-        new Date(epoch).toISOString().slice(0, 10).replace(/-/g, "");
+      const fallbackFormat = (
+        epoch: number
+      ) =>
+        new Date(epoch)
+          .toISOString()
+          .slice(0, 10)
+          .replace(/-/g, "");
 
-      const fileStart = formattedStart || fallbackFormat(startEpoch);
-      const fileEnd = formattedEnd || fallbackFormat(endEpoch);
+      const fileStart =
+        formattedStart ||
+        fallbackFormat(startEpoch);
+
+      const fileEnd =
+        formattedEnd ||
+        fallbackFormat(endEpoch);
 
       const reportType =
-        !hasMembersSelected && hasRolesSelected ? "role" : "member";
+        !hasMembersSelected &&
+        hasRolesSelected
+          ? "role"
+          : "member";
 
-      const filename = `${reportType}-report-${fileStart}-${fileEnd}.xlsx`;
+      const filename =
+        `${reportType}-report-` +
+        `${fileStart}-${fileEnd}.xlsx`;
 
-      await sendXlsxResponse(res, filename, rows);
+      await sendXlsxResponse(
+        res,
+        filename,
+        rows
+      );
+
       return;
     } catch (error) {
-      console.error("Error exporting role report:", error);
+      console.error(
+        "Error exporting role report:",
+        error
+      );
 
       return res.status(500).json({
-        message: "Failed to export role report.",
+        message:
+          "Failed to export role report.",
       });
     }
   };
