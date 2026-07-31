@@ -23,21 +23,21 @@ export const csrfMiddleware: RequestHandler = (req, res, next) => {
 
   if (typeof sent !== "string") {
     res.status(403).json({
-      message: "Missing CSRF token.",
+      message: "Missing CSRF token. Refresh and try again",
     });
     return;
   }
 
   if (typeof req.session.csrfToken !== "string") {
     res.status(403).json({
-      message: "CSRF session token missing.",
+      message: "CSRF session token missing. Refresh and try again",
     });
     return;
   }
 
   if (sent !== req.session.csrfToken) {
     res.status(403).json({
-      message: "Invalid CSRF token.",
+      message: "Invalid CSRF token. Refresh and try again.",
     });
     return;
   }

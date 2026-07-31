@@ -127,7 +127,7 @@ export default function OperationalPage() {
         finalresponse = response
       const result = await finalresponse.json();
 
-      const message = encodeURIComponent("Attendance logged successfully!");
+      const message = encodeURIComponent(result.message || "Attendance logged successfully!");
       const type = encodeURIComponent("success");
       navigate(`/attendance?popupMessage=${message}&popupType=${type}`); 
     } catch (err) {
