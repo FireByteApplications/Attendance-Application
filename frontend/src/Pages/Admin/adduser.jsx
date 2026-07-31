@@ -62,7 +62,6 @@ const AddUser = () => {
       setTimeout(() => {
         window.location.href = "/admin/users";
       }, 2000);
-      // optionally reset form or redirect
     } else {
       const data = await res.json();
       setErrorMessage(data.message || "Failed to add user please try again.");

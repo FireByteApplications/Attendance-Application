@@ -172,7 +172,6 @@ export default function Login() {
 
       sessionStorage.setItem("usernames", JSON.stringify(selectedUsernames));
 
-      // Keep this for old pages that still expect one username.
       sessionStorage.setItem("username", selectedUsernames[0]);
 
       window.location.href = "/attendance/selection";

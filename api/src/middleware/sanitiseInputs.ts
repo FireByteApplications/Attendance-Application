@@ -277,13 +277,13 @@ export function sanitizeUpdatedUser(req: Request, res: Response, next: NextFunct
   };
 
   const validators = [
-    { value: sanitized.oldname, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'Old Name' },
-    { value: sanitized.name, pattern: /^[a-zA-Z-'\s]{1,50}$/, field: 'Name' },
+    { value: sanitized.oldname, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'Old Name' },
+    { value: sanitized.name, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'Name' },
     { value: sanitized.oldfzNumber, pattern: /^\d{1,9}?$/, field: 'Old Firezone Number' },
     { value: sanitized.fzNumber, pattern: /^\d{1,9}?$/, field: 'FireZone Number' },
-    { value: sanitized.memberStatus, pattern: /^[a-zA-Z]{1,10}(\(?[a-zA-Z]{4}\))?$/, field: 'Membership Status' },
-    { value: sanitized.memberClassification, pattern: /^[a-zA-Z]{1,12}$/, field: 'Membership Classification' },
-    { value: sanitized.memberType, pattern: /^[a-zA-Z]{1,11}(\s[a-zA-Z]{7})?$/, field: 'Membership Type' }
+    { value: sanitized.memberStatus, pattern: /^(Active|Active\(Life\)|Inactive)$/, field: 'Membership Status' },
+    { value: sanitized.memberClassification, pattern: /^(Ordinary|Associate|Probationary)$/, field: 'Membership Classification' },
+    { value: sanitized.memberType, pattern: /^(Operational|Social|Operational\sSupport)$/, field: 'Membership Type' }
   ]
 
   for (const { value, pattern, field } of validators) {
@@ -316,9 +316,9 @@ export function sanitizeUser(req: Request, res: Response, next: NextFunction) {
     { value: sanitized.firstName, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'First Name' },
     { value: sanitized.lastName, pattern: /^[a-zA-Z-'\s]{1,25}$/, field: 'Last Name' },
     { value: sanitized.fireZoneNumber, pattern: /^\d{1,9}?$/, field: 'Firezone Number' },
-    { value: sanitized.Status, pattern: /^[a-zA-Z]{1,10}(\(?[a-zA-Z]{4}\))?$/, field: 'Membership Status' },
-    { value: sanitized.Classification, pattern: /^[a-zA-Z]{1,12}$/, field: 'Membership Classification' },
-    { value: sanitized.Type, pattern: /^[a-zA-Z]{1,11}(\s[a-zA-Z]{7})?$/, field: 'Membership type' }
+    { value: sanitized.Status, pattern: /^(Active|Active\(Life\)|Inactive)$/, field: 'Membership Status' },
+    { value: sanitized.Classification, pattern: /^(Ordinary|Associate|Probationary)$/, field: 'Membership Classification' },
+    { value: sanitized.Type, pattern: /^(Operational|Social|Operational\sSupport)$/, field: 'Membership type' }
   ]
 
   for (const { value, pattern, field } of validators) {
@@ -520,9 +520,9 @@ export function sanitizeIncidentCreation(req: Request, res: Response, next: Next
   }
 
   if (!sanitized.ActivID) {
-    errors.push("Activity ID is required");
+    errors.push("Activ ID is required");
   } else if (!/^\d{2}-\d{1,8}$/.test(sanitized.ActivID)) {
-    errors.push("Activity ID must be in the format 26-12345678");
+    errors.push("Activ ID must be in the format 26-12345678");
   }
 
   if (!sanitized.IncidentDescription) {
@@ -569,7 +569,7 @@ export function sanitizeFireZoneNumber(
 
   if (invalidNumbers.length > 0) {
     res.status(400).json({
-      message: `Invalid fire zone numbers: ${invalidNumbers.join(", ")}`,
+      message: 'Invalid fire zone number.',
     });
     return;
   }
@@ -658,7 +658,7 @@ export function sanitizeUpdateEventRolesBody(
     return;
   }
 
-  if (updates.length > 200) {
+  if (updates.length > 50) {
     res.status(400).json({
       message: "Too many role updates.",
     });
