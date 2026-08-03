@@ -1,4 +1,3 @@
-// src/hooks/ProtectedRoute.jsx
 import AuthGate from "./authGate";
 
 export default function ProtectedRoute({ children, requireAdmin = false }) {

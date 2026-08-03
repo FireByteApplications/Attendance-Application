@@ -1,5 +1,6 @@
 import 'express-session';
 import {Request} from "express"
+import { Collection, Document } from "mongodb";
 
 declare module 'express-session' {
   interface SessionData {
@@ -11,10 +12,13 @@ declare module 'express-session' {
       id?: string;
       isAdmin?: boolean;
     };
+    canAssignRoles?: boolean;
+    roleAssignmentUnlockedAt?: number;
     groups?: string[];
     token?: string;
     csrfToken?: string;
     validUsername?: string;
+    validUsernames?: string[];
   }
 }
 declare global{
@@ -59,4 +63,38 @@ interface AzureProfile {
 interface AzureGroupList {
   value: { id: string; displayName: string }[];
 }
+
+type CounterDocument = {
+  _id: string;
+  seq: number;
+};
+
+type EventServiceCollections = {
+  eventsCollection: Collection<Document>;
+  countersCollection: Collection<CounterDocument>;
+};
+
+type XlsxValue = string | number | boolean | Date;
+
+type XlsxStyledCell = {
+  value: XlsxValue;
+  type?: StringConstructor | NumberConstructor | BooleanConstructor | DateConstructor | "Formula";
+  format?: string;
+
+  fontWeight?: "bold";
+  fontStyle?: "italic";
+  fontSize?: number;
+  fontFamily?: string;
+  textColor?: string;
+  backgroundColor?: string;
+
+  align?: "left" | "center" | "right";
+  alignVertical?: "top" | "center" | "bottom";
+  indent?: number;
+  wrap?: boolean;
+};
+
+type XlsxCell = XlsxValue | XlsxStyledCell | null | undefined;
+type XlsxRow = XlsxCell[];
+
 }

@@ -13,6 +13,9 @@ import NonOpPage from './Pages/Attendance/Non-op-page';
 import OpPage from './Pages/Attendance/Op-page';
 import SelectionPage from './Pages/Attendance/Selection-page';
 import ProtectedRoute from "./hooks/protectedroutes";
+import ManageIncidents from "./Pages/Attendance/Manage-Incidents";
+import Roles from "./Pages/Attendance/Roles";
+import RoleReports from "./Pages/Admin/rolereports"
 
 function App() {
   return (
@@ -54,8 +57,23 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="rolereports"
+            element={
+              <ProtectedRoute requireAdmin>
+                <RoleReports />
+              </ProtectedRoute>
+            }
+          />
          <Route path="postlogout" element={<Postlogout/>}/>
         </Route>
+        <Route 
+          path="manageincidents"
+          element={<ManageIncidents />}/>
+        <Route 
+          path="roles"
+          element={<Roles />}/>
+
 
         {/* Attendance pages (all under /attendance) */}
         <Route path="/attendance" element={<AttendanceLand />}/>

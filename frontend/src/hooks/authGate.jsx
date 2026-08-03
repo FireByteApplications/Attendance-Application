@@ -17,13 +17,12 @@ export default function AuthGate({ children, requireAdmin = false }) {
         });
 
         if (res.status === 401) {
-          // No app session -> kick off Microsoft login at your API
+          // kick off Microsoft login at API
           window.location.href = `${apiUrl}/auth/login`;
           return;
         }
 
         if (!res.ok) {
-          // Any other server error -> show Unauthorized (or an error page)
           navigate("/unauthorized", { replace: true });
           return;
         }
@@ -37,7 +36,7 @@ export default function AuthGate({ children, requireAdmin = false }) {
         setChecking(false);
       } catch (err) {
         if (!ac.signal.aborted) {
-          // Network error, etc. Choose where to send them; home is fine.
+
           navigate("/", { replace: true });
         }
       }

@@ -10,15 +10,12 @@ const handleAdminClick = async () => {
       });
 
       if (res.ok) {
-        // Session exists → go straight to dashboard
         window.location.href = '/admin/dashboard';
       } else {
-        // No session → go to login flow
         window.location.href = `${apiUrl}/auth/login`;
       }
     } catch (err) {
       console.error('Error checking session:', err);
-      // fallback to login if something fails
       window.location.href = `${apiUrl}/auth/login`;
     }
   };
@@ -28,20 +25,43 @@ export default function Home() {
     <>
       <div className="container d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
       <div className="row text-center">
-        <div className="col-md-6 mb-4">
-          <Link to="/attendance" className="text-decoration-none">
-            <div className="card p-4 shadow-sm h-100">
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/attendance"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
               <h4 className="mb-0">Attendance Site</h4>
             </div>
           </Link>
         </div>
-        <div className="col-md-6 mb-4">
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/manageincidents"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
+              <h4 className="mb-0">Event Management</h4>
+            </div>
+          </Link>
+        </div>
+        <div className="col-md-6 mb-4 d-flex">
+          <Link
+            to="/roles"
+            className="text-decoration-none btn btn-link p-0 w-100"
+          >
+            <div className="card p-4 shadow-sm h-100 w-100 d-flex justify-content-center align-items-center text-center">
+              <h4 className="mb-0">Role Assignment</h4>
+            </div>
+          </Link>
+        </div>
+        <div className="col-md-6 mb-4 d-flex">
           <button
             onClick={handleAdminClick}
-            className="text-decoration-none btn btn-link p-0"
+            className="text-decoration-none btn btn-link p-0 w-100"
             style={{ textDecoration: 'none' }}
           >
-            <div className="card p-4 shadow-sm h-100">
+            <div className="card p-4 shadow-sm h-100 w-100 h-100 justify-content-center align-items-center text-center">
               <h4 className="mb-0">Admin Dashboard</h4>
             </div>
           </button>

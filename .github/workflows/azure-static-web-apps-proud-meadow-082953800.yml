@@ -39,7 +39,6 @@ jobs:
             else
              echo "VITE_API_BASE_URL=${{ secrets.API_URL_STAGING }}" >> $GITHUB_ENV
             fi
-
         - name: Replace API origin in CSP
           run: sed -i "s|__API_ORIGIN__|${{ env.VITE_API_BASE_URL }}|" frontend/staticwebapp.config.json
         - name: Select env flags

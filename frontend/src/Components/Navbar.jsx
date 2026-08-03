@@ -1,23 +1,48 @@
-// src/Components/Navbar.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Navbar() {
+  const isProd = import.meta.env.VITE_STAGE === 'prod';
   const location = useLocation();
   const navigate = useNavigate();
+
   const path = location.pathname;
-  const isAdmin = location.pathname.startsWith("/admin");
-  const isAttendance = location.pathname.startsWith("/attendance");
-  const isIndex = location.pathname === "/";
+
+  const isAdmin = path.startsWith("/admin");
+  const isAttendance = path.startsWith("/attendance");
+  const isIndex = path === "/";
+
   const pathBackMap = {
-  "/attendance/selection": "/attendance",
-  "/attendance/operational": "/attendance/selection",
-  "/attendance/non-operational": "/attendance/selection",
-  "/admin/dashboard": "/admin",
-  "/admin/add-user": "/admin/users",
-  "/admin/users": "/admin/dashboard",
-  "/admin/reports": "/admin/dashboard",
-};
+    "/attendance/selection": "/attendance",
+    "/attendance/operational": "/attendance/selection",
+    "/attendance/non-operational": "/attendance/selection",
+    "/admin/dashboard": "/admin",
+    "/admin/add-user": "/admin/users",
+    "/admin/users": "/admin/dashboard",
+    "/admin/reports": "/admin/dashboard",
+    "/admin/rolereports": "/admin/dashboard"
+  };
+
+  const pageTitleMap = {
+    "/": "JRFB Attendance Application",
+
+    "/attendance": "Attendance System",
+    "/attendance/selection": "Select Attendance Type",
+    "/attendance/operational": "Operational Attendance",
+    "/attendance/non-operational": "Non-Operational Attendance",
+
+    "/admin": "Admin Portal",
+    "/admin/dashboard": "Admin Dashboard",
+    "/admin/add-user": "Add User",
+    "/admin/users": "Manage Users",
+    "/admin/reports": "Attendance Reports",
+    "/admin/rolereports": "Role Reports",
+
+    "/manageincidents": "Event Management",
+    "/roles": "Role Assignment"
+  };
+
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
+
   if (path.startsWith("/attendance/")) {
   sessionStorage.removeItem("activity");
   }
@@ -28,23 +53,34 @@ export default function Navbar() {
   };
 
   const getTitle = () => {
-    if (isAdmin) return "Admin Portal";
-    if (isAttendance) return "Attendance System";
-    return "JRFB Attendance Application";
+    if (isProd === true){
+      if (pageTitleMap[path] !== undefined){
+       return pageTitleMap[path] 
+      } else{
+        return "JRFB Attendance Application"
+      } ;
+    } else {
+        if(pageTitleMap[path] !== undefined){
+          return pageTitleMap[path] + " (Dev)"
+        } else{
+          return "JRFB Attendance Application" + " (Dev)"
+        }
+    }
+    
   };
 
   return (
-    <nav className="navbar navbar-dark bg-dark">
+    <nav className={`navbar navbar-dark ${isProd === true ? "bg-dark" : "bg-danger"}`}>
       <div className="container-fluid d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
-          {/* Back Button (not on index) */}
+          {/* Dont put back button on home page */}
           {!isIndex && (
             <button onClick={handleSmartBack} className="btn btn-outline-light">
               <i className="bi bi-arrow-left"></i> Back
             </button>
           )}
 
-          {/* Logout (admin only) */}
+          {/* Logout on admin pages only */}
           {isAdmin && (
             <a href={`${apiUrl}/auth/logout`} className="btn btn-outline-light">
               Logout

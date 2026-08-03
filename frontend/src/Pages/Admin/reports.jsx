@@ -39,6 +39,7 @@ const activityOptions = {
   ],
 };
 
+
 export default function Reports({ users = [] }) {
   const csrfToken = useCsrfToken(apiUrl);
       useEffect(() => {
@@ -53,7 +54,7 @@ export default function Reports({ users = [] }) {
     operational: '',
     includeZeroAttendance: false,
     detailed: false,
-    incidentType: ''
+    incidentType: '',
   });
   const [activities, setActivities] = useState(activityOptions.Any);
   const [reportHTML, setReportHTML] = useState('');
@@ -100,7 +101,7 @@ export default function Reports({ users = [] }) {
         activity: form.activity,
         operational: form.operational,
         detailed: form.detailed,
-        includeZeroAttendance: form.includeZeroAttendance
+        includeZeroAttendance: form.includeZeroAttendance,
       }),
     });
     const result = await res.json();
@@ -124,7 +125,6 @@ export default function Reports({ users = [] }) {
         const hasActivityType = !!(isDetailed && rows.some(r =>
           r?.deploymentType || r?.baType || r?.chainsawType || r?.otherType
         ));
-
         const hasActivityLocation = !!(isDetailed && rows.some(r => r?.deploymentLocation));
 
         const headerHtml = isDetailed
@@ -266,12 +266,21 @@ export default function Reports({ users = [] }) {
                 {activities.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
+            <div>
+            </div>
             <div className="form-check mt-3">
               <input type="checkbox" className="form-check-input" name="includeZeroAttendance" checked={form.includeZeroAttendance} onChange={handleChange} />
               <label className="form-check-label">Include members with 0 attendance</label>
             </div>
             <div className="form-check form-switch">
-              <input className="form-check-input" type="checkbox" role="switch" name="detailedAttendance" onChange={handleChange}></input>
+              <input
+                className="form-check-input"
+                type="checkbox"
+                role="switch"
+                name="detailed"
+                checked={form.detailed}
+                onChange={handleChange}
+              />
               <label className="form-check-label">Detailed attendance</label>
             </div>
             <div className="col-12 mt-3">

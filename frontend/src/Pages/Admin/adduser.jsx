@@ -62,7 +62,6 @@ const AddUser = () => {
       setTimeout(() => {
         window.location.href = "/admin/users";
       }, 2000);
-      // optionally reset form or redirect
     } else {
       const data = await res.json();
       setErrorMessage(data.message || "Failed to add user please try again.");
@@ -86,9 +85,9 @@ const AddUser = () => {
               name="firstName"
               className="form-control mb-3"
               placeholder="First Name"
-              maxLength="25"
+              maxLength={25}
               required
-              pattern="[A-Za-z\s-]+"
+              pattern={"^[A-Za-z\\s\\-]+$"}
               value={formData.firstName}
               onChange={handleChange}
             />
@@ -99,9 +98,9 @@ const AddUser = () => {
               name="lastName"
               className="form-control mb-3"
               placeholder="Last Name"
-              maxLength="25"
+              maxLength={25}
               required
-              pattern="[A-Za-z\s-]+"
+              pattern={"^[a-zA-Z-'\s]{1,25}$"}
               value={formData.lastName}
               onChange={handleChange}
             />
@@ -112,8 +111,9 @@ const AddUser = () => {
               name="fireZoneNumber"
               className="form-control mb-3"
               placeholder="Fire Zone Number"
-              maxLength="15"
-              pattern="[1-9]+"
+              maxLength={15}
+              pattern={"^[0-9]+$"}
+              inputMode="numeric"
               required
               value={formData.fireZoneNumber}
               onChange={handleChange}
