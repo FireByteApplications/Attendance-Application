@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTitle } from "../../hooks/useTitle.jsx";
-import { useCsrfToken } from "../../Components/csrfHelper.jsx";
+import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
@@ -173,12 +173,6 @@ export default function RoleAssignment() {
   const showMessage = (type, text) => {
     setMessage({ type, text });
   };
-
-  useEffect(() => {
-    if (csrfToken) {
-      sessionStorage.setItem("csrf", csrfToken);
-    }
-  }, [csrfToken]);
 
   useEffect(() => {
     if (!message) return;
@@ -443,14 +437,13 @@ export default function RoleAssignment() {
     }
 
     try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/unlock`,
+      const response = await csrfFetch(
+        apiurl, "/api/attendance/roleAssignment/unlock",
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
           },
           body: JSON.stringify({ pin }),
         }
@@ -493,14 +486,13 @@ export default function RoleAssignment() {
     setMessage(null);
 
     try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/updateRoles`,
+      const response = await csrfFetch(
+        apiurl, "/api/attendance/roleAssignment/updateRoles",
         {
           method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
           },
           body: JSON.stringify({
             eventNumber: selectedEventNumber,
@@ -541,14 +533,13 @@ export default function RoleAssignment() {
     setMessage(null);
 
     try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/addAttendance`,
+      const response = await csrfFetch(
+        apiurl, "/api/attendance/roleAssignment/addAttendance",
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
           },
           body: JSON.stringify({
             eventNumber: selectedEventNumber,

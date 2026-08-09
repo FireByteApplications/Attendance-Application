@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTitle } from "../../hooks/useTitle.jsx";
-import { useCsrfToken } from "../../Components/csrfHelper.jsx";
+import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
 import { validateIncidentCreationForm } from "../../Utils/formValidation.js";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
@@ -36,11 +36,6 @@ export default function CreateIncidentsPage() {
     overflowX: "hidden",
     paddingBottom: "2rem",
   };
-  useEffect(() => {
-    if (csrfToken) {
-      sessionStorage.setItem("csrf", csrfToken);
-    }
-  }, [csrfToken]);
 
   useEffect(() => {
     const checkPinStatus = async () => {
@@ -101,7 +96,6 @@ export default function CreateIncidentsPage() {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
       });
 
@@ -129,7 +123,6 @@ export default function CreateIncidentsPage() {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
       });
 
@@ -184,12 +177,11 @@ export default function CreateIncidentsPage() {
     };
 
     try {
-      const response = await fetch(`${apiurl}/api/attendance/createIncident`, {
+      const response = await csrfFetch(apiurl, "/api/attendance/createIncident", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
         body: JSON.stringify(payload),
       });
@@ -231,14 +223,13 @@ export default function CreateIncidentsPage() {
     setSubmitStatus(null);
 
     try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/deleteIncident/${eventNumberToDelete}`,
+      const response = await csrfFetch(
+        apiurl, `/api/attendance/deleteIncident/${eventNumberToDelete}`,
         {
           method: "DELETE",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
           },
         }
       );
@@ -288,14 +279,13 @@ export default function CreateIncidentsPage() {
     setIsDeleting(true);
 
     try {
-      const response = await fetch(
-        `${apiurl}/api/attendance/roleAssignment/unlock`,
+      const response = await csrfFetch(
+        apiurl, "/api/attendance/roleAssignment/unlock",
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
           },
           body: JSON.stringify({ pin }),
         }

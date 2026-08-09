@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect } from "react";
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
 
 const activities = [
   "Meeting",
@@ -22,9 +22,6 @@ const pageShellStyle = {
 
 export default function OperationalPage() {
   const csrfToken = useCsrfToken(apiurl);
-  useEffect(() => {
-      if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-    }, [csrfToken]);
   const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
@@ -112,12 +109,11 @@ export default function OperationalPage() {
         epochTimestamp: dateObj.getTime(),
         ...(activity === "Other-Non-operational" && { otherType }),
       };
-        const response = await fetch(`${apiurl}/api/attendance/submit`, {
+        const response = await csrfFetch(apiurl, "/api/attendance/submit", {
         method: "POST",
         credentials: 'include',
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
         body: JSON.stringify(data),
       });

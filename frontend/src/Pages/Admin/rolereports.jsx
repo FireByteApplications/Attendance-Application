@@ -1,7 +1,7 @@
 import { useTitle } from "../../hooks/useTitle.jsx";
 import { useEffect, useState } from "react";
 import moment from "moment-timezone";
-import { useCsrfToken } from "../../Components/csrfHelper.jsx";
+import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -52,12 +52,6 @@ export default function RoleReports() {
     "Burnover",
     "Gas Detection"
     ];
-
-  useEffect(() => {
-    if (csrfToken) {
-      sessionStorage.setItem("csrf", csrfToken);
-    }
-  }, [csrfToken]);
 
   useEffect(() => {
     fetchUsers();
@@ -191,12 +185,11 @@ export default function RoleReports() {
     setIsRunning(true);
 
     try {
-      const response = await fetch(`${apiUrl}/api/reports/roles/run`, {
+      const response = await csrfFetch(apiUrl, "/api/reports/roles/run", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
         body: JSON.stringify({
           startEpoch,
@@ -243,12 +236,11 @@ export default function RoleReports() {
     setIsExporting(true);
 
     try {
-      const response = await fetch(`${apiUrl}/api/reports/roles/export`, {
+      const response = await csrfFetch(apiUrl, "/api/reports/roles/export", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
         body: JSON.stringify({
           startEpoch,

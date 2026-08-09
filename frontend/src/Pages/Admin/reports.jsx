@@ -1,7 +1,7 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
 import { useEffect, useState } from 'react';
 import moment from 'moment-timezone';
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 const activityOptions = {
@@ -41,10 +41,6 @@ const activityOptions = {
 
 
 export default function Reports({ users = [] }) {
-  const csrfToken = useCsrfToken(apiUrl);
-      useEffect(() => {
-          if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-        }, [csrfToken]);
   const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     startTime: '',
@@ -87,11 +83,10 @@ export default function Reports({ users = [] }) {
     const startEpoch = moment.tz(form.startTime, "Australia/Sydney").valueOf();
     const endEpoch = moment.tz(form.endTime, "Australia/Sydney").valueOf();
 
-    const res = await fetch(`${apiUrl}/api/reports/run`, {
+    const res = await csrfFetch(apiUrl, "/api/reports/run", {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json', 
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
+        'Content-Type': 'application/json',
       },
       credentials: "include",
       body: JSON.stringify({
@@ -193,11 +188,10 @@ export default function Reports({ users = [] }) {
     const formattedStart = start.format('YYYYMMDD');
     const formattedEnd = end.format('YYYYMMDD');
 
-    const res = await fetch(`${apiUrl}/api/reports/export`, {
+    const res = await csrfFetch(apiUrl, "/api/reports/export", {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf")
       },
       credentials: "include",
       body: JSON.stringify({

@@ -1,6 +1,6 @@
 import { useTitle } from "../../hooks/useTitle.jsx";
 import { useState, useEffect, useRef } from "react";
-import { useCsrfToken } from "../../Components/csrfHelper.jsx";
+import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
@@ -53,12 +53,6 @@ export default function Login() {
     overflowX: "hidden",
     paddingBottom: "2rem",
   };
-
-  useEffect(() => {
-    if (csrfToken) {
-      sessionStorage.setItem("csrf", csrfToken);
-    }
-  }, [csrfToken]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -152,12 +146,11 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch(`${apiurl}/api/attendance/checkUser`, {
+      const res = await csrfFetch(apiurl, "/api/attendance/checkUser", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
         body: JSON.stringify({
           usernames: selectedUsernames,
