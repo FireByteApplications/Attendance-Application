@@ -22,7 +22,7 @@ export const validateIncidentID = (value) =>
   /^\d{2}-\d{1,8}$/.test(value);
 
 export const validateDescription = (value) =>
-  /^[A-Za-z0-9\s\-,]{1,50}$/.test(value);
+  /^[A-Za-z0-9\s\-,]{1,200}$/.test(value);
 
 export const validateEventNumber = (value) =>
   /^EVT-\d{5}$/.test(value);
@@ -160,7 +160,7 @@ export const validateUserForm = (formData) => {
     errors.push("Last name must contain only letters, spaces, or hyphens.");
   }
 
-  if (!validateFireZoneNumber(formData.fireZoneNumber)) {
+  if (!validateFireZoneNumber(formData.fireZoneNumber.trim())) {
     errors.push("Fire zone number must contain digits 0-9 only.");
   }
 
@@ -179,11 +179,11 @@ export const validateIncidentCreationForm = (formdata) => {
   if (!validateDateDMY(formdata.Date)) {
     errors.push("Date format invalid. Format required: DD/MM/YYY")
   }
-  if (!validateIncidentID(formdata.ActivID)) {
+  if (!validateIncidentID(formdata.ActivID.trim())) {
     errors.push("Activ Incident id must be in format 26-12345678")
   }
   if (!validateDescription(formdata.IncidentDescription)) {
-    errors.push("Description must not be empty, only contain letters numbers and hyphens and less than 50 characters")
+    errors.push("Description must not be empty, only contain letters numbers and hyphens and less than 200 characters")
   }
   return errors;
 }

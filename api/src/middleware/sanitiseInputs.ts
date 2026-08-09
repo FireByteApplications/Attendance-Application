@@ -527,8 +527,8 @@ export function sanitizeIncidentCreation(req: Request, res: Response, next: Next
 
   if (!sanitized.IncidentDescription) {
     errors.push("Incident description is required");
-  } else if (!/^[A-Za-z0-9\s,\.-]{1,50}$/.test(sanitized.IncidentDescription)) {
-    errors.push("Incident description can only contain letters and numbers");
+  } else if (!/^[A-Za-z0-9\s,\.-]{1,200}$/.test(sanitized.IncidentDescription)) {
+    errors.push("Incident description can only contain letters numbers, hyphens and commas");
   }
 
   if (errors.length) {
