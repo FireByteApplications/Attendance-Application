@@ -534,7 +534,7 @@ export default function RoleAssignment() {
 
     try {
       const response = await csrfFetch(
-        `${apiurl}/api/attendance/roleAssignment/addAttendance`,
+        apiurl, "/api/attendance/roleAssignment/addAttendance",
         {
           method: "POST",
           credentials: "include",
