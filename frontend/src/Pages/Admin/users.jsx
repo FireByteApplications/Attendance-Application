@@ -1,6 +1,6 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
 import { useState, useEffect } from 'react';
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -23,10 +23,6 @@ export default function Users() {
   };
 
   const csrfToken = useCsrfToken(apiUrl);
-
-  useEffect(() => {
-      if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-    }, [csrfToken]);
 
   useEffect(() => {
     fetchUsers();
@@ -78,12 +74,11 @@ export default function Users() {
       memberClassification: editingUser.membership_classification,
       memberType: editingUser.membership_type,
     };
-    fetch(`${apiUrl}/api/users/updateRecord`, {
+    csrfFetch(apiUrl, "/api/users/updateRecord", {
       method: 'PATCH',
       credentials: "include",
       headers: { 
         'Content-Type': 'application/json',
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf")
       },
       body: JSON.stringify(updatedData),
     })
@@ -114,12 +109,11 @@ export default function Users() {
 
   const handleDelete = async () => {
     if (!selectedUsers.size || !window.confirm("Are you sure you want to delete selected users?")) return;
-    fetch(`${apiUrl}/api/users/delete`, {
+    csrfFetch(apiUrl, "/api/users/delete", {
       method: 'DELETE',
       credentials: "include",
       headers: { 
         'Content-Type': 'application/json',
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
       },
       body: JSON.stringify({ numbers: Array.from(selectedUsers) })
     })

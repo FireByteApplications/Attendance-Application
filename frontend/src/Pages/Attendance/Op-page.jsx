@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 import { useTitle } from '../../hooks/useTitle.jsx';
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
 import { validateOperationalAttendanceData } from "../../Utils/formValidation.js";
 
 const activities = [
@@ -30,9 +30,6 @@ const pageShellStyle = {
 
 export default function OperationalPage() {
   const csrfToken = useCsrfToken(apiurl);
-    useEffect(() => {
-        if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-      }, [csrfToken]);
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [baType, setBaType] = useState("");
   const [chainsawType, setChainsawType] = useState("");
@@ -64,7 +61,6 @@ export default function OperationalPage() {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         },
       });
 
@@ -140,12 +136,11 @@ export default function OperationalPage() {
       setIsSubmitting(true)
       setSubmitMessage(null)
       setSubmitStatus(null)
-      const response = await fetch(`${apiurl}/api/attendance/submit`, {
+      const response = await csrfFetch(apiurl, "/api/attendance/submit", {
         method: "POST",
         credentials: 'include',
         headers: {
           "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf")
         },
         body: JSON.stringify(data),
       });

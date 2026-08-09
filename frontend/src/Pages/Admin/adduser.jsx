@@ -1,14 +1,11 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect} from "react";
-import {useCsrfToken} from "../../Components/csrfHelper.jsx"
+import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
 
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL
 const AddUser = () => {
   const csrfToken = useCsrfToken(apiUrl);
-      useEffect(() => {
-          if (csrfToken) sessionStorage.setItem("csrf", csrfToken);
-        }, [csrfToken]);
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -47,10 +44,9 @@ const AddUser = () => {
     return;
   }
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/adduser`, {
+    const res = await csrfFetch(apiUrl, "/api/users/adduser", {
       method: "POST",
       headers: {
-        "X-CSRF-Token": csrfToken || sessionStorage.getItem("csrf"),
         "Content-Type": "application/json",
       },
       credentials: "include",

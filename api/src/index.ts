@@ -424,6 +424,8 @@ client.connect().then(() => {
         return;
       }
 
+      res.setHeader("Cache-control", "no-store")
+
       res.status(200).json({
         csrfToken,
       });
