@@ -34,7 +34,7 @@ export default function AuthGate({ children, requireAdmin = false }) {
           return;
         }
         setChecking(false);
-      } catch (err) {
+      } catch {
         if (!ac.signal.aborted) {
 
           navigate("/", { replace: true });

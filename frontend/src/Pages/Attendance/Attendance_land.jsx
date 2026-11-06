@@ -1,13 +1,12 @@
 import { useTitle } from "../../hooks/useTitle.jsx";
 import { useState, useEffect, useRef } from "react";
-import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
+import { csrfFetch } from "../../Components/csrfHelper.jsx";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
 export default function Login() {
   useTitle("JRFB Attendance Log In");
 
-  const csrfToken = useCsrfToken(apiurl);
 
   const [popup, setPopup] = useState({ message: "", type: "" });
 
@@ -16,7 +15,7 @@ export default function Login() {
   const [selectedUsernames, setSelectedUsernames] = useState([]);
 
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [showUsernameSearch, setShowUsernameSearch] = useState(true);
+  const [, setShowUsernameSearch] = useState(true);
   const inputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
@@ -44,14 +43,6 @@ export default function Login() {
         ? current.filter((existingUsername) => existingUsername !== normalized)
         : [...current, normalized]
     );
-  };
-
-  const pageShellStyle = {
-    minHeight: "100vh",
-    width: "100%",
-    overflowY: "auto",
-    overflowX: "hidden",
-    paddingBottom: "2rem",
   };
 
   useEffect(() => {

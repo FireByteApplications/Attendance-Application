@@ -107,7 +107,26 @@ function sanitizeRoleReportBase(
   req.body.names = names;
   req.body.roles = roles;
 
+  if (!requireFormattedDates && !sanitizeReportPagination(req, res)) return;
+
   next();
+}
+
+function sanitizeReportPagination(req: Request, res: Response): boolean {
+  const hasPage = req.body.page !== undefined || req.body.pageSize !== undefined;
+  if (!hasPage) return true;
+
+  const page = Number(req.body.page);
+  const pageSize = Number(req.body.pageSize);
+  if (!Number.isInteger(page) || page < 1 || page > 1000 ||
+      !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    res.status(400).json({ message: 'Invalid report page or page size.' });
+    return false;
+  }
+
+  req.body.page = page;
+  req.body.pageSize = pageSize;
+  return true;
 }
 
 function parseBoolean(v: unknown): boolean | undefined {
@@ -394,7 +413,11 @@ export function sanitizeReportingRunInput(req: Request, res: Response, next: Nex
     ...sanitized,
     startEpoch: startEpochMS,
     endEpoch: endEpochMS,
+    page: req.body.page,
+    pageSize: req.body.pageSize,
   };
+
+  if (!sanitizeReportPagination(req, res)) return;
 
   return next();
 }

@@ -3,28 +3,258 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
-  height: 100%;
 }
 
 body {
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-gutter: stable;
-  scrollbar-width: auto;
-  -ms-overflow-style: auto;
+  color: #17232e;
+  background: #f3f5f7;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 main {
   flex: 1 1 auto;
   width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-width: 0;
 }
 
 * {
   box-sizing: border-box;
+}
+
+:root {
+  --app-radius: 0.85rem;
+  --app-shadow: 0 8px 28px rgb(19 35 48 / 8%);
+}
+
+.app-navbar {
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  padding-bottom: 0.75rem;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 12%);
+}
+
+.app-shell main {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pwa-status {
+  margin: 0;
+  border-radius: 0;
+}
+
+.app-navbar__inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.app-navbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.app-navbar__title {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: end;
+  line-height: 1.2;
+}
+
+.app-navbar__actions:empty + .app-navbar__title {
+  text-align: start;
+}
+
+.app-shell main > .container,
+.app-shell main > .container-fluid {
+  padding-block: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.app-shell .card {
+  min-width: 0;
+  border-color: #dbe2e8;
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+}
+
+.app-shell .card-body,
+.app-shell .card.p-4 {
+  min-width: 0;
+}
+
+.app-shell .form-control,
+.app-shell .form-select,
+.app-shell .btn {
+  min-height: 2.75rem;
+}
+
+.app-shell .form-control,
+.app-shell .form-select {
+  max-width: 100%;
+}
+
+.app-shell .form-control:focus-visible,
+.app-shell .form-select:focus-visible,
+.app-shell .btn:focus-visible,
+.app-shell a:focus-visible {
+  outline: 3px solid #f9b233;
+  outline-offset: 2px;
+}
+
+.app-shell .table-responsive {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-shell .table-responsive > .table {
+  min-width: 42rem;
+  margin-bottom: 0;
+}
+
+.app-shell .table th,
+.app-shell .table td {
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .table td input:not([type="checkbox"]),
+.app-shell .table td select {
+  max-width: 100%;
+  min-width: 7rem;
+}
+
+.home-page {
+  min-height: min(80dvh, 48rem);
+  padding-block: 2rem;
+}
+
+.home-page .row {
+  max-width: 52rem;
+}
+
+.home-page .card {
+  min-height: 10rem;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.home-page a:hover .card,
+.home-page button:hover .card {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgb(19 35 48 / 16%);
+}
+
+.activity-page .activity-options {
+  max-width: 70rem;
+  margin-inline: auto;
+}
+
+.activity-page .activity-options .btn {
+  white-space: normal;
+}
+
+.activity-page .dropdown-menu {
+  max-width: min(90vw, 28rem);
+  max-height: 20rem;
+  overflow: auto;
+}
+
+.incident-page .incident-card {
+  width: min(100% - 2rem, 70rem);
+  margin: 1.5rem auto;
+}
+
+.incident-page > .alert {
+  width: min(100% - 2rem, 70rem);
+  margin-inline: auto !important;
+}
+
+#addUserForm {
+  max-width: 42rem;
+}
+
+.report-results__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 767.98px) {
+  .app-navbar__inner {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+  }
+
+  .app-navbar__title {
+    width: 100%;
+    text-align: start;
+    font-size: 1.1rem;
+  }
+
+  .app-shell .container,
+  .app-shell .container-fluid {
+    padding-inline: 1rem;
+  }
+
+  .app-shell .card.p-4,
+  .app-shell .card-body.p-4 {
+    padding: 1rem !important;
+  }
+
+  .app-shell h1 {
+    font-size: clamp(1.55rem, 6vw, 2.25rem);
+  }
+
+  .app-shell .form-control,
+  .app-shell .form-select {
+    font-size: 1rem;
+  }
+
+  .activity-page .activity-options .btn {
+    flex: 1 1 100%;
+  }
+
+  .activity-page .form-select.w-50 {
+    width: 100% !important;
+  }
+
+  .activity-page .form-control.w-auto {
+    display: block !important;
+    width: 100% !important;
+    margin: 0.5rem 0 0 !important;
+  }
+
+  .incident-page .incident-card {
+    width: calc(100% - 2rem);
+    margin-block: 1rem;
+  }
+
+  .incident-page .card-body {
+    padding: 1rem !important;
+  }
+
+  .incident-page .form-label span {
+    font-size: 1.1rem !important;
+  }
+
+  .incident-page .mt-5 {
+    margin-top: 1.5rem !important;
+  }
+
+  .report-results__header .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .card {
+    transition: none;
+  }
 }

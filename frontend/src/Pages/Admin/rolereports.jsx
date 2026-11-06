@@ -1,14 +1,15 @@
 import { useTitle } from "../../hooks/useTitle.jsx";
 import { useEffect, useState } from "react";
 import moment from "moment-timezone";
-import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
+import { csrfFetch } from "../../Components/csrfHelper.jsx";
+import ReportPagination from '../../Components/ReportPagination.jsx';
+import { REPORT_PAGE_SIZE } from '../../Utils/reportPagination.js';
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
 export default function RoleReports() {
   useTitle("Role Reports");
 
-  const csrfToken = useCsrfToken(apiUrl);
 
   const [submitMessage, setSubmitMessage] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
@@ -24,6 +25,8 @@ export default function RoleReports() {
 
   const [reportRows, setReportRows] = useState([]);
   const [reportCount, setReportCount] = useState(0);
+  const [reportPage, setReportPage] = useState(1);
+  const [activeQuery, setActiveQuery] = useState(null);
   const [reportType, setReportType] = useState("")
   const [reportTypeSelected, setReportTypeSelected] = useState(false)
 
@@ -88,9 +91,6 @@ export default function RoleReports() {
     setReportType(type)
     setSelectedNames([])
     setSelectedRoles([])
-
-    memberButton = document.getElementById("memberReportButton")
-    roleButton = document.getElementById("roleReportButton")
   }
   const handleNameToggle = (name) => {
     setSelectedNames((current) => {
@@ -170,20 +170,8 @@ export default function RoleReports() {
     return true;
   };
 
-  const runReport = async (e) => {
-    e.preventDefault();
-
-    setSubmitMessage(null);
-    setSubmitStatus(null);
-    setReportRows([]);
-    setReportCount(0);
-
-    if (!validateFilters()) return;
-
-    const { startEpoch, endEpoch } = getDateRangeEpochs();
-
+  const loadReportPage = async (query, page) => {
     setIsRunning(true);
-
     try {
       const response = await csrfFetch(apiUrl, "/api/reports/roles/run", {
         method: "POST",
@@ -192,10 +180,9 @@ export default function RoleReports() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          startEpoch,
-          endEpoch,
-          names: selectedNames,
-          roles: selectedRoles
+          ...query,
+          page,
+          pageSize: REPORT_PAGE_SIZE,
         }),
       });
 
@@ -210,6 +197,8 @@ export default function RoleReports() {
 
       setReportRows(rows);
       setReportCount(result.count ?? rows.length);
+      setReportPage(page);
+      setActiveQuery(query);
 
       if (rows.length === 0) {
         showMessage("error", "No role records found for the selected filters.");
@@ -220,6 +209,17 @@ export default function RoleReports() {
     } finally {
       setIsRunning(false);
     }
+  };
+
+  const runReport = (e) => {
+    e.preventDefault();
+    setSubmitMessage(null);
+    setSubmitStatus(null);
+    setReportRows([]);
+    setReportCount(0);
+    if (!validateFilters()) return;
+    const { startEpoch, endEpoch } = getDateRangeEpochs();
+    loadReportPage({ startEpoch, endEpoch, names: selectedNames, roles: selectedRoles }, 1);
   };
 
   const exportExcel = async () => {
@@ -305,7 +305,7 @@ export default function RoleReports() {
 
         <div className="card p-4 mb-4" id="filterForm">
           <div className="card-body p-2">
-            <div className="d-flex gap-2 mb-2">
+            <div className="d-flex flex-wrap gap-2 mb-2">
               <button
                 type="button"
                 id="memberReportButton"
@@ -345,9 +345,9 @@ export default function RoleReports() {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
-            <div className="d-flex gap-2 mb-2">
+            <div className="row g-3 mb-2">
             {reportTypeSelected && reportType === "member" && (
-              <div className="col-md-4 position-relative">
+              <div className="col-12 col-md-6 position-relative">
               <label className="form-label">Members</label>
               <button
                 type="button"
@@ -411,7 +411,7 @@ export default function RoleReports() {
             </div>
             )}
             {reportTypeSelected && reportType  === "role" && (
-              <div className="col-md-4 position-relative">
+              <div className="col-12 col-md-6 position-relative">
               <label className="form-label">Roles</label>
 
               <button
@@ -475,7 +475,7 @@ export default function RoleReports() {
             </div>
             )}
             {reportTypeSelected && (
-              <div className="col-md-2 d-flex align-items-end">
+              <div className="col-12 col-md-3 d-flex align-items-end">
               <button
                 type="submit"
                 className="btn btn-primary w-100"
@@ -491,7 +491,7 @@ export default function RoleReports() {
         </div>
 
         {reportRows.length > 0 && (
-          <div className="mb-3 d-flex justify-content-between align-items-center">
+          <div className="mb-3 d-flex flex-wrap gap-2 justify-content-between align-items-center">
             <h3 className="mb-0">Found {reportCount} role record(s)</h3>
 
             <button
@@ -538,6 +538,8 @@ export default function RoleReports() {
                 </tbody>
               </table>
             </div>
+            <ReportPagination count={reportCount} page={reportPage} pageSize={REPORT_PAGE_SIZE}
+              busy={isRunning} onPageChange={(nextPage) => loadReportPage(activeQuery, nextPage)} />
           </div>
         )}
       </div>

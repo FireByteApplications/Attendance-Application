@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTitle } from "../../hooks/useTitle.jsx";
-import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
+import { csrfFetch } from "../../Components/csrfHelper.jsx";
 import { validateIncidentCreationForm } from "../../Utils/formValidation.js";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
@@ -8,7 +8,6 @@ const apiurl = import.meta.env.VITE_API_BASE_URL;
 export default function CreateIncidentsPage() {
   useTitle("Event Mangement");
 
-  const csrfToken = useCsrfToken(apiurl);
 
   const [incDate, setIncDate] = useState("");
   const [activId, setActivId] = useState("");
@@ -16,7 +15,7 @@ export default function CreateIncidentsPage() {
 
   const [pin, setPin] = useState("");
   const [unlocked, setUnlocked] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [, setLoadingStatus] = useState(true);
 
   const [submitMessage, setSubmitMessage] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
@@ -311,7 +310,7 @@ export default function CreateIncidentsPage() {
   };
   
     return (
-      <div style={pageShellStyle}>
+      <div className="incident-page" style={pageShellStyle}>
         {submitMessage && (
           <div
             className={`alert ${
@@ -322,7 +321,7 @@ export default function CreateIncidentsPage() {
             {submitMessage}
           </div>
         )}
-          <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
+          <div className="card shadow-sm incident-card d-flex">
             <div className="card-body pt-4 px-4">
               <h4 className="card-title mb-4 text-center">Create Incident</h4>
 
@@ -387,7 +386,7 @@ Example: AFA - Kiama - 01 July 26"
             </div>
           </div>
 
-          <div className="card shadow-sm m-5 d-flex" style={{ width: "90%" }}>
+          <div className="card shadow-sm incident-card d-flex">
             <div className="card-body p-4">
               <h4 className="card-title mb-4 text-center">Incidents</h4>
 
@@ -401,13 +400,14 @@ Example: AFA - Kiama - 01 July 26"
                       <th>Date</th>
                       <th>Event ID</th>
                       <th>Description</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
                   <tbody>
                     {incidentsArray.length === 0 ? (
                       <tr>
-                        <td colSpan="3" className="text-center text-muted">
+                        <td colSpan="4" className="text-center text-muted">
                           No incidents found.
                         </td>
                       </tr>
@@ -521,13 +521,14 @@ Example: AFA - Kiama - 01 July 26"
                         <th>Date</th>
                         <th>Event ID</th>
                         <th>Description</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       {eventsArray.length === 0 ? (
                         <tr>
-                          <td colSpan="3" className="text-center text-muted">
+                          <td colSpan="4" className="text-center text-muted">
                             No non incident events found.
                           </td>
                         </tr>

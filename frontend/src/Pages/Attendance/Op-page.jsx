@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react";
 import { useNavigate } from "react-router-dom";
 import { useTitle } from '../../hooks/useTitle.jsx';
-import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
+import {csrfFetch} from "../../Components/csrfHelper.jsx"
 import { validateOperationalAttendanceData } from "../../Utils/formValidation.js";
 
 const activities = [
@@ -29,7 +29,6 @@ const pageShellStyle = {
 };
 
 export default function OperationalPage() {
-  const csrfToken = useCsrfToken(apiurl);
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [baType, setBaType] = useState("");
   const [chainsawType, setChainsawType] = useState("");
@@ -222,7 +221,7 @@ export default function OperationalPage() {
   useTitle('Operational Attendance');
 
   return (
-    <div className="w-100 py-4" style={pageShellStyle}>
+    <div className="w-100 py-4 activity-page" style={pageShellStyle}>
       <div className="container py-4">
         {submitMessage && (
           <div
@@ -245,7 +244,7 @@ export default function OperationalPage() {
         )}
 
         <h1 className="text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm mx-auto">Select Operational Activity</h1>
-        <div className="d-flex flex-wrap justify-content-center gap-2 my-4">
+        <div className="activity-options d-flex flex-wrap justify-content-center gap-2 my-4">
           {activities.map((activity) => (
             <button
               key={activity}

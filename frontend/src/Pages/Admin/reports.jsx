@@ -1,7 +1,9 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
 import { useEffect, useState } from 'react';
 import moment from 'moment-timezone';
-import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
+import {csrfFetch} from "../../Components/csrfHelper.jsx"
+import ReportPagination from '../../Components/ReportPagination.jsx';
+import { pageSlice, REPORT_PAGE_SIZE } from '../../Utils/reportPagination.js';
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 const activityOptions = {
@@ -40,7 +42,7 @@ const activityOptions = {
 };
 
 
-export default function Reports({ users = [] }) {
+export default function Reports() {
   const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({
     startTime: '',
@@ -52,8 +54,10 @@ export default function Reports({ users = [] }) {
     detailed: false,
     incidentType: '',
   });
-  const [activities, setActivities] = useState(activityOptions.Any);
-  const [reportHTML, setReportHTML] = useState('');
+  const activities = activityOptions[form.operational || 'Any'];
+  const [report, setReport] = useState(null);
+  const [reportPage, setReportPage] = useState(1);
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [userOptions, setUserOptions] = useState([]);
 
   useEffect(() => {
@@ -66,123 +70,69 @@ export default function Reports({ users = [] }) {
       .catch(console.error);
   }, []);
 
-  useEffect(() => {
-    setActivities(activityOptions[form.operational || 'Any']);
-  }, [form.operational]);
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
-    if(name === "detailedAttendance"){
-      form.detailed = checked
+  };
+
+  const loadReport = async (query) => {
+    setIsPageLoading(true);
+    setErrorMessage('');
+    try {
+      const res = await csrfFetch(apiUrl, '/api/reports/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(query),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setErrorMessage(`An error has occurred: ${result.message || result.error || 'Please try again.'}`);
+        return;
+      }
+
+      const isDetailed = !!query.detailed;
+      const rows = isDetailed
+        ? (Array.isArray(result?.records) ? result.records : [])
+        : (Array.isArray(result) ? result : []);
+      const count = typeof result?.count === 'number' ? result.count : rows.length;
+      setReport({
+        count,
+        hasActivityLocation: isDetailed && rows.some((row) => row?.deploymentLocation),
+        hasActivityType: isDetailed && rows.some((row) =>
+          row?.deploymentType || row?.baType || row?.chainsawType || row?.otherType),
+        isDetailed,
+        rows,
+        query,
+      });
+      setReportPage(query.page || 1);
+    } catch {
+      setErrorMessage('Unable to load the report. Please try again.');
+    } finally {
+      setIsPageLoading(false);
     }
   };
 
-  const runReport = async (e) => {
+  const runReport = (e) => {
     e.preventDefault();
-    const startEpoch = moment.tz(form.startTime, "Australia/Sydney").valueOf();
-    const endEpoch = moment.tz(form.endTime, "Australia/Sydney").valueOf();
+    const query = {
+      startEpoch: moment.tz(form.startTime, 'Australia/Sydney').valueOf(),
+      endEpoch: moment.tz(form.endTime, 'Australia/Sydney').valueOf(),
+      name: form.name,
+      activity: form.activity,
+      operational: form.operational,
+      detailed: form.detailed,
+      includeZeroAttendance: form.includeZeroAttendance,
+      ...(form.detailed && { page: 1, pageSize: REPORT_PAGE_SIZE }),
+    };
+    loadReport(query);
+  };
 
-    const res = await csrfFetch(apiUrl, "/api/reports/run", {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        startEpoch,
-        endEpoch,
-        name: form.name,
-        activity: form.activity,
-        operational: form.operational,
-        detailed: form.detailed,
-        includeZeroAttendance: form.includeZeroAttendance,
-      }),
-    });
-    const result = await res.json();
-    if (!res.ok) {
-      setErrorMessage("An error has occured: " + result.message)
-      setTimeout(() => {
-        setErrorMessage(null)
-      }, 8000);
-    } else {
-        const isDetailed = !!form.detailed;
-
-        const rows = isDetailed
-          ? (Array.isArray(result?.records) ? result.records
-             : Array.isArray(result) ? result
-             : [])
-
-          : (Array.isArray(result)? result : []);
-
-        const count = (typeof result?.count === 'number') ? result.count : rows.length;
-
-        const hasActivityType = !!(isDetailed && rows.some(r =>
-          r?.deploymentType || r?.baType || r?.chainsawType || r?.otherType
-        ));
-        const hasActivityLocation = !!(isDetailed && rows.some(r => r?.deploymentLocation));
-
-        const headerHtml = isDetailed
-        ? `
-          <th>Timestamp</th>
-          <th>Name</th>
-          <th>Operational</th>
-          <th>Activity</th>
-          ${hasActivityType ? '<th>Activity Detail</th>' : ''}
-          ${hasActivityLocation ? '<th>Activity Location</th>' : ''}
-        `
-        : `
-          <th>Name</th>
-          <th>Member Number</th>
-          <th>Member status</th>
-          <th>Membership Classification</th>
-          <th>Membership Type</th>
-          <th>Operational activities</th>
-          <th>Non-Operational Activities</th>
-        `;
-
-        const rowsHtml = isDetailed
-          ? rows.map(r => `
-              <tr>
-                <td>${moment.tz(r.epochTimestamp, "Australia/Sydney").format("DD-MM-YYYY HH:mm")}</td>
-                <td>${r.name ?? ''}</td>
-                <td>${r.operational ?? ''}</td>
-                <td>${r.activity ?? ''}</td>
-                ${hasActivityType ? `<td>${r.deploymentType || r.baType || r.chainsawType || r.otherType || ''}</td>` : ''}
-                ${hasActivityLocation ? `<td>${r.deploymentLocation || ''}</td>` : ''}
-              </tr>
-            `).join('')
-          : rows.map(r => `
-              <tr>
-                <td>${r.user ?? r.name ?? ''}</td>
-                <td>${r.memberNumber ?? ''}</td>
-                <td>${r.status ?? ''}</td>
-                <td>${r.membership_classification ?? r.Membership_Classification ?? ''}</td>
-                <td>${r.membership_type ?? ''}</td>
-                <td>${r.operationalActivities ?? 0}</td>
-                <td>${r.nonOperationalActivities ?? 0}</td>
-              </tr>
-            `).join('');
-        const html = `
-          <div class="position-relative">
-            ${count > 0 ? `
-              <div class="col-12 mt-3">
-                <button class="btn btn-success position-absolute top-0 end-0 mt-0 me-2 z-1" data-action="export-excel">
-                  Export to Excel
-                </button>
-              </div>` : ''
-            }
-            <h3 class="mb-3">Found ${count} record(s)</h3>
-            <table class="table table-bordered">
-              <thead><tr>${headerHtml}</tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          </div>
-        `;
-        setReportHTML(html);
-            }
-          }
-  const exportExcel = async (e) => {
+  const changePage = (nextPage) => {
+    if (report?.isDetailed) loadReport({ ...report.query, page: nextPage });
+    else setReportPage(nextPage);
+  };
+  const exportExcel = async () => {
     const start = moment.tz(form.startTime, "Australia/Sydney");
     const end = moment.tz(form.endTime, "Australia/Sydney");
     const formattedStart = start.format('YYYYMMDD');
@@ -223,6 +173,9 @@ export default function Reports({ users = [] }) {
     }
   };
   useTitle('Attendance Reports');
+  const visibleRows = report?.isDetailed
+    ? report.rows
+    : pageSlice(report?.rows, reportPage);
   return (
     <>
       <div className="container mt-5">
@@ -230,22 +183,22 @@ export default function Reports({ users = [] }) {
         {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
         <div className="card p-4 mb-4">
           <form className="row g-3" onSubmit={runReport}>
-            <div className="col-auto">
+            <div className="col-12 col-md-6 col-xl-auto">
               <label className="form-label">Start Date/Time</label>
               <input type="datetime-local" className="form-control" name="startTime" value={form.startTime} onChange={handleChange} />
             </div>
-            <div className="col-auto">
+            <div className="col-12 col-md-6 col-xl-auto">
               <label className="form-label">End Date/Time</label>
               <input type="datetime-local" className="form-control" name="endTime" value={form.endTime} onChange={handleChange} />
             </div>
-            <div className="col-md-2">
+            <div className="col-12 col-md-4 col-xl-2">
               <label className="form-label">Name</label>
               <select className="form-select" name="name" value={form.name} onChange={handleChange}>
                 <option value="">Any</option>
                 {userOptions.map((u) => <option key={u.name} value={u.name}>{u.name}</option>)}
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-12 col-md-4 col-xl-2">
               <label className="form-label">Operational</label>
               <select className="form-select" name="operational" value={form.operational} onChange={handleChange}>
                 <option value="">Any</option>
@@ -253,7 +206,7 @@ export default function Reports({ users = [] }) {
                 <option value="Non-Operational">Non-Operational</option>
               </select>
             </div>
-            <div className="col-md-2">
+            <div className="col-12 col-md-4 col-xl-2">
               <label className="form-label">Activity</label>
               <select className="form-select" name="activity" value={form.activity} onChange={handleChange}>
                 <option value="">Any</option>
@@ -278,17 +231,87 @@ export default function Reports({ users = [] }) {
               <label className="form-check-label">Detailed attendance</label>
             </div>
             <div className="col-12 mt-3">
-              <button type="submit" className="btn btn-primary me-2">Run Report</button>
+              <button type="submit" className="btn btn-primary me-2" disabled={isPageLoading}>
+                {isPageLoading ? 'Loading…' : 'Run Report'}
+              </button>
             </div>
           </form>
         </div>
         
-        <div onClick={(e) => {
-            if (e.target.closest('[data-action="export-excel"]')) {
-              exportExcel();
-            }
-          }}
-          id="reportResults" dangerouslySetInnerHTML={{ __html: reportHTML }} />
+        {report && (
+          <div id="reportResults">
+            <div className="report-results__header">
+              <h3 className="mb-0">Found {report.count} record(s)</h3>
+              {report.count > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={exportExcel}
+                >
+                  Export to Excel
+                </button>
+              )}
+            </div>
+            <div className="table-responsive">
+            <table className="table table-bordered">
+              <thead>
+                <tr>
+                  {report.isDetailed ? (
+                    <>
+                      <th>Timestamp</th>
+                      <th>Name</th>
+                      <th>Operational</th>
+                      <th>Activity</th>
+                      {report.hasActivityType && <th>Activity Detail</th>}
+                      {report.hasActivityLocation && <th>Activity Location</th>}
+                    </>
+                  ) : (
+                    <>
+                      <th>Name</th>
+                      <th>Member Number</th>
+                      <th>Member status</th>
+                      <th>Membership Classification</th>
+                      <th>Membership Type</th>
+                      <th>Operational activities</th>
+                      <th>Non-Operational Activities</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row, index) => (
+                  <tr key={row._id || `${row.name || row.user || 'record'}-${index}`}>
+                    {report.isDetailed ? (
+                      <>
+                        <td>{moment.tz(row.epochTimestamp, "Australia/Sydney").format("DD-MM-YYYY HH:mm")}</td>
+                        <td>{row.name ?? ''}</td>
+                        <td>{row.operational ?? ''}</td>
+                        <td>{row.activity ?? ''}</td>
+                        {report.hasActivityType && (
+                          <td>{row.deploymentType || row.baType || row.chainsawType || row.otherType || ''}</td>
+                        )}
+                        {report.hasActivityLocation && <td>{row.deploymentLocation || ''}</td>}
+                      </>
+                    ) : (
+                      <>
+                        <td>{row.user ?? row.name ?? ''}</td>
+                        <td>{row.memberNumber ?? ''}</td>
+                        <td>{row.status ?? ''}</td>
+                        <td>{row.membership_classification ?? row.Membership_Classification ?? ''}</td>
+                        <td>{row.membership_type ?? ''}</td>
+                        <td>{row.operationalActivities ?? 0}</td>
+                        <td>{row.nonOperationalActivities ?? 0}</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            <ReportPagination count={report.count} page={reportPage} pageSize={REPORT_PAGE_SIZE}
+              busy={isPageLoading} onPageChange={changePage} />
+          </div>
+        )}
       </div>
     </>
   );

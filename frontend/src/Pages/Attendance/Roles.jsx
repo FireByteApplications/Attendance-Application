@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTitle } from "../../hooks/useTitle.jsx";
-import { useCsrfToken, csrfFetch } from "../../Components/csrfHelper.jsx";
+import { csrfFetch } from "../../Components/csrfHelper.jsx";
 
 const apiurl = import.meta.env.VITE_API_BASE_URL;
 
@@ -145,7 +145,6 @@ function getRolesForActivity(activity) {
 export default function RoleAssignment() {
   useTitle("Role Assignment");
 
-  const csrfToken = useCsrfToken(apiurl);
 
   const [pin, setPin] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -755,7 +754,7 @@ export default function RoleAssignment() {
 
           {selectedEventNumber && (
             <div className="card p-4">
-              <div className="d-flex justify-content-between align-items-center mb-3">
+              <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
                 <div>
                   <h2 className="h4 mb-1">Attendees</h2>
 
