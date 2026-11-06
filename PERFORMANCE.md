@@ -21,3 +21,11 @@ Detailed attendance and role reports request 50 records per page. The API accept
 The local `JRFBLogin_Dev` database had only `_id` indexes on `Records` and `Events` when reviewed on 5 November 2026. Six query-specific indexes were then created in that local database. `cd api && npm run review:indexes` compares the configured database with indexes for the date-sorted report pages, event-number attendance lookup, and event lists. It makes no changes. Run `npm run review:indexes -- --apply` to create missing indexes for a different database after reviewing its query plans and write cost. Index creation is deliberately not part of application startup or deployment.
 
 The report filters use case-insensitive regular expressions, which may limit how much a name or role index helps. The proposed report indexes start with `epochTimestamp` to support the bounded date range and stable page order. For Azure Cosmos DB, review RU and indexing policy impact against staging data before applying indexes to production.
+
+Azure Cosmos DB for MongoDB rejects the detailed attendance report's two-field sort when the matching compound index is missing. In the **dev database**, check `db.Records.getIndexes()` and, if `{ epochTimestamp: 1, _id: 1 }` is absent, run:
+
+```javascript
+db.Records.createIndex({ epochTimestamp: 1, _id: 1 }, { name: 'report_time_id' })
+```
+
+The index change is reversible with `db.Records.dropIndex('report_time_id')`. Confirm the selected database before either command. The index is not created by the app deployment.
