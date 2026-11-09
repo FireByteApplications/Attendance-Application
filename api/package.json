@@ -10,7 +10,6 @@
     "review:indexes": "node scripts/review-indexes.mjs"
   },
   "dependencies": {
-    "@mongodb-js/zstd": "^7.0.0",
     "connect-mongo": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
