@@ -811,6 +811,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       operational,
       detailed,
       includeZeroAttendance,
+      page,
+      pageSize,
     } = req.body;
 
     try {
@@ -845,14 +847,17 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       }
 
       const MAX_ROWS = 50000;
+      const pagedDetailed = detailed === true && Number.isInteger(page) && Number.isInteger(pageSize);
+      const totalCount = pagedDetailed ? await recordsCollection.countDocuments(query) : undefined;
+      const records = pagedDetailed
+        ? await recordsCollection.find(query)
+            .sort({ epochTimestamp: 1, _id: 1 })
+            .skip((page - 1) * pageSize)
+            .limit(pageSize)
+            .toArray()
+        : await recordsCollection.find(query).limit(MAX_ROWS + 1).toArray();
 
-      const recordsCursor = recordsCollection
-        .find(query)
-        .limit(MAX_ROWS + 1);
-
-      const records = await recordsCursor.toArray();
-
-      if (records.length > MAX_ROWS) {
+      if (!pagedDetailed && records.length > MAX_ROWS) {
         res.status(413).json({
           error:
             "Result too large. Narrow date range or filters.",
@@ -902,8 +907,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         });
 
         res.status(200).json({
-          count: transformed.length,
+          count: totalCount ?? transformed.length,
           records: transformed,
+          ...(pagedDetailed && { page, pageSize }),
         });
         return;
       }
@@ -2362,6 +2368,8 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
         endEpoch,
         names,
         roles,
+        page,
+        pageSize,
       } = req.body;
 
       const hasMembersSelected =
@@ -2408,9 +2416,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       );
 
       const MAX_ROWS = 5000;
-
-      const records = await recordsCollection
-        .find(query, {
+      const paged = Number.isInteger(page) && Number.isInteger(pageSize);
+      const totalCount = paged ? await recordsCollection.countDocuments(query) : undefined;
+      const recordsCursor = recordsCollection.find(query, {
           projection: {
             _id: 0,
             name: 1,
@@ -2420,11 +2428,13 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
             roles: 1,
             epochTimestamp: 1,
           },
-        })
-        .limit(MAX_ROWS + 1)
-        .toArray();
+        });
+      const records = await (paged
+        ? recordsCursor.sort({ epochTimestamp: 1, name: 1, _id: 1 })
+            .skip((page - 1) * pageSize).limit(pageSize)
+        : recordsCursor.limit(MAX_ROWS + 1)).toArray();
 
-      if (records.length > MAX_ROWS) {
+      if (!paged && records.length > MAX_ROWS) {
         return res.status(413).json({
           message:
             "Result too large. Narrow date range or selected members.",
@@ -2513,8 +2523,9 @@ const tokenData = await fetchOrThrow<AzureTokenResponse>(
       });
 
       return res.status(200).json({
-        count: dto.length,
+        count: totalCount ?? dto.length,
         records: dto,
+        ...(paged && { page, pageSize }),
       });
     } catch (error) {
       console.error(

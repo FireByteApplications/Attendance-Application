@@ -1,0 +1,12 @@
+Always check before implementing any change in application flow or authentication, anything to do with layout or the way the user progresses through pages.
+
+Ensure the application remains compatible with current CI/CD to Azure.
+
+Security is paramount; however, the PIN system for role management is to stay the way it currently is until instructed otherwise.
+
+Always run tests after each phase and complete full regression testing.
+
+- Never modify production configs directly.
+- All database migrations must be reversible.
+- Include rollback steps in PR descriptions for risky changes.
+- Use feature flags for anything touching authentication.

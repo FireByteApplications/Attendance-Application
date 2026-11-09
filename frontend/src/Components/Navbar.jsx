@@ -8,7 +8,6 @@ export default function Navbar() {
   const path = location.pathname;
 
   const isAdmin = path.startsWith("/admin");
-  const isAttendance = path.startsWith("/attendance");
   const isIndex = path === "/";
 
   const pathBackMap = {
@@ -70,13 +69,13 @@ export default function Navbar() {
   };
 
   return (
-    <nav className={`navbar navbar-dark ${isProd === true ? "bg-dark" : "bg-danger"}`}>
-      <div className="container-fluid d-flex justify-content-between align-items-center">
-        <div className="d-flex align-items-center gap-2">
+    <nav className={`navbar navbar-dark app-navbar ${isProd === true ? "bg-dark" : "bg-danger"}`} aria-label="Page navigation">
+      <div className="container-fluid app-navbar__inner">
+        <div className="app-navbar__actions">
           {/* Dont put back button on home page */}
           {!isIndex && (
-            <button onClick={handleSmartBack} className="btn btn-outline-light">
-              <i className="bi bi-arrow-left"></i> Back
+            <button type="button" onClick={handleSmartBack} className="btn btn-outline-light">
+              <span aria-hidden="true">←</span> Back
             </button>
           )}
 
@@ -87,9 +86,8 @@ export default function Navbar() {
             </a>
           )}
 
-          {/* Title */}
-          <span className="navbar-brand mb-0 h1">{getTitle()}</span>
         </div>
+        <span className="navbar-brand app-navbar__title mb-0 h1">{getTitle()}</span>
       </div>
     </nav>
   );

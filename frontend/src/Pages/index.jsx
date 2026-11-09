@@ -23,8 +23,8 @@ export default function Home() {
  useTitle('Home | Selection');
   return (
     <>
-      <div className="container d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
-      <div className="row text-center">
+      <div className="container home-page d-flex justify-content-center align-items-center">
+      <div className="row text-center w-100">
         <div className="col-md-6 mb-4 d-flex">
           <Link
             to="/attendance"

@@ -1,6 +1,6 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
 import { useState, useEffect } from 'react';
-import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
+import {csrfFetch} from "../../Components/csrfHelper.jsx"
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -22,7 +22,6 @@ export default function Users() {
       .catch(() => setErrorMessage("Failed to load users."));
   };
 
-  const csrfToken = useCsrfToken(apiUrl);
 
   useEffect(() => {
     fetchUsers();
@@ -141,12 +140,13 @@ export default function Users() {
         {successMessage && <div className="alert alert-success fade show">{successMessage}</div>}
         {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
 
-        <div className="d-flex gap-2 mt-3">
+        <div className="d-flex flex-wrap gap-2 mt-3">
           <a href="/admin/add-user" className="btn btn-primary">Add New User</a>
           <button type="button" className="btn btn-danger" onClick={handleDelete}>Delete Selected Users</button>
         </div>
 
-        <table className="table table-striped mt-4">
+        <div className="table-responsive mt-4">
+        <table className="table table-striped">
           <thead>
             <tr>
               <th>Select</th>
@@ -161,27 +161,27 @@ export default function Users() {
           <tbody>
             {users.map((user) => (
               <tr key={user.id}>
-                <td><input type="checkbox" checked={selectedUsers.has(user.id)} onChange={() => handleUserCheckbox(user.id)} /></td>
+                <td><input type="checkbox" aria-label={`Select ${user.name}`} checked={selectedUsers.has(user.id)} onChange={() => handleUserCheckbox(user.id)} /></td>
                 {editingNumber === user.id ? (
                   <>
-                    <td><input value={editingUser.name} onChange={e => handleEditChange("name", e.target.value)} /></td>
-                    <td><input value={editingUser.id} onChange={e => handleEditChange("id", e.target.value)} /></td>
+                    <td><input aria-label="Name" value={editingUser.name} onChange={e => handleEditChange("name", e.target.value)} /></td>
+                    <td><input aria-label="Fire zone number" value={editingUser.id} onChange={e => handleEditChange("id", e.target.value)} /></td>
                     <td>
-                      <select value={editingUser.member_status} onChange={e => handleEditChange("member_status", e.target.value)}>
+                      <select aria-label="Status" value={editingUser.member_status} onChange={e => handleEditChange("member_status", e.target.value)}>
                         <option value="Active">Active</option>
                         <option value="Active(Life)">Active(Life)</option>
                         <option value="Inactive">Inactive</option>
                       </select>
                     </td>
                     <td>
-                      <select value={editingUser.membership_classification} onChange={e => handleEditChange("membership_classification", e.target.value)}>
+                      <select aria-label="Membership classification" value={editingUser.membership_classification} onChange={e => handleEditChange("membership_classification", e.target.value)}>
                         <option value="Ordinary">Ordinary</option>
                         <option value="Associate">Associate</option>
                         <option value="Probationary">Probationary</option>
                       </select>
                     </td>
                     <td>
-                      <select value={editingUser.membership_type} onChange={e => handleEditChange("membership_type", e.target.value)}>
+                      <select aria-label="Membership type" value={editingUser.membership_type} onChange={e => handleEditChange("membership_type", e.target.value)}>
                         <option value="Operational">Operational</option>
                         <option value="Social">Social</option>
                         <option value="Operational Support">Operational Support</option>
@@ -208,6 +208,7 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   );

@@ -1,24 +1,26 @@
-// src/App.jsx
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './Components/layout';
 import Index from './Pages/index';
-import AddUser from './Pages/Admin/adduser';
-import Dashboard from './Pages/Admin/dashboard';
-import Postlogout from './Pages/Admin/post-logout';
-import Reports from './Pages/Admin/reports';
-import Users from './Pages/Admin/users';
-import Unauthorized from './Pages/unauthorised';
-import AttendanceLand from './Pages/Attendance/Attendance_land';
-import NonOpPage from './Pages/Attendance/Non-op-page';
-import OpPage from './Pages/Attendance/Op-page';
-import SelectionPage from './Pages/Attendance/Selection-page';
 import ProtectedRoute from "./hooks/protectedroutes";
-import ManageIncidents from "./Pages/Attendance/Manage-Incidents";
-import Roles from "./Pages/Attendance/Roles";
-import RoleReports from "./Pages/Admin/rolereports"
+
+const AddUser = lazy(() => import('./Pages/Admin/adduser'));
+const Dashboard = lazy(() => import('./Pages/Admin/dashboard'));
+const Postlogout = lazy(() => import('./Pages/Admin/post-logout'));
+const Reports = lazy(() => import('./Pages/Admin/reports'));
+const Users = lazy(() => import('./Pages/Admin/users'));
+const Unauthorized = lazy(() => import('./Pages/unauthorised'));
+const AttendanceLand = lazy(() => import('./Pages/Attendance/Attendance_land'));
+const NonOpPage = lazy(() => import('./Pages/Attendance/Non-op-page'));
+const OpPage = lazy(() => import('./Pages/Attendance/Op-page'));
+const SelectionPage = lazy(() => import('./Pages/Attendance/Selection-page'));
+const ManageIncidents = lazy(() => import('./Pages/Attendance/Manage-Incidents'));
+const Roles = lazy(() => import('./Pages/Attendance/Roles'));
+const RoleReports = lazy(() => import('./Pages/Admin/rolereports'));
 
 function App() {
   return (
+    <Suspense fallback={<div className="container py-4" role="status" aria-live="polite">Loading page…</div>}>
     <Routes>
       {/* Root site-wide layout */}
       <Route element={<Layout />}>
@@ -84,6 +86,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }
 

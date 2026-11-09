@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useTitle } from '../../hooks/useTitle.jsx';
 import {useState, useEffect } from "react";
-import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
+import {csrfFetch} from "../../Components/csrfHelper.jsx"
 
 const activities = [
   "Meeting",
@@ -21,7 +21,6 @@ const pageShellStyle = {
 };
 
 export default function OperationalPage() {
-  const csrfToken = useCsrfToken(apiurl);
   const [otherType, setOtherType] = useState("")
   const [selectedActivity, setSelectedActivity] = useState(sessionStorage.getItem("activity") || "");
   const [date, setDate] = useState("");
@@ -150,7 +149,7 @@ export default function OperationalPage() {
   useTitle('Non Operational Attendance');
   return (
     
-    <div className="w-100 py-4" style={pageShellStyle}>     
+    <div className="w-100 py-4 activity-page" style={pageShellStyle}>
       <div className="container py-4">
         <h1 className="text-center mb-4 display-6 border border-2 rounded-3 p-3 bg-danger text-black fw-semibold shadow-sm mx-auto">Select Non Operational Activity</h1>
         {submitMessage && (
@@ -172,7 +171,7 @@ export default function OperationalPage() {
             )}
           </div>
         )}
-        <div className="d-flex flex-wrap justify-content-center gap-2 my-4">
+        <div className="activity-options d-flex flex-wrap justify-content-center gap-2 my-4">
           {activities.map((activity) => (
             <button
               key={activity}

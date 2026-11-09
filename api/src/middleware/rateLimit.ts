@@ -1,4 +1,31 @@
-import { rateLimit } from "express-rate-limit";
+import type { Request } from "express";
+import { ipKeyGenerator, rateLimit as createRateLimit } from "express-rate-limit";
+import { isIP } from "node:net";
+
+function clientIpKey(request: Request): string {
+  const forwarded = request.ip ?? "";
+  let address = forwarded;
+
+  if (!isIP(address)) {
+    const ipv4WithPort = /^((?:\d{1,3}\.){3}\d{1,3}):\d+$/.exec(address);
+    const ipv6WithPort = /^\[([^\]]+)\]:\d+$/.exec(address);
+    if (ipv4WithPort && isIP(ipv4WithPort[1]) === 4) {
+      address = ipv4WithPort[1];
+    } else if (ipv6WithPort && isIP(ipv6WithPort[1]) === 6) {
+      address = ipv6WithPort[1];
+    }
+  }
+
+  if (!isIP(address)) {
+    const peer = request.socket.remoteAddress;
+    address = peer && isIP(peer) ? peer : "unknown";
+  }
+
+  return ipKeyGenerator(address);
+}
+
+const rateLimit = (options: Parameters<typeof createRateLimit>[0]) =>
+  createRateLimit({ ...options, keyGenerator: clientIpKey });
 
 /**
  * Broad group limiters

@@ -4,13 +4,13 @@ export const validateName = (value) =>
   /^[a-zA-Z-'\s]{1,50}$/.test(value);
 
 export const validateSelections = (value) => 
-  /^[a-zA-Z\s-\(\)]{1,25}$/.test(value);
+  /^[a-zA-Z\s()-]{1,25}$/.test(value);
 
 export const validateFireZoneNumber = (value) => 
   /^\d{1,9}$/.test(value);
 
 export const validateOtherType = (value) => 
-  /^[a-zA-Z0-9\s\.,\-\']{1,50}$/.test(value);
+  /^[a-zA-Z0-9\s.,'-]{1,50}$/.test(value);
 
 export const sanitizeName = (name) =>
   name.trim();
@@ -49,19 +49,8 @@ export function validateOperationalAttendanceData(data) {
   const errors = [];
 
   const nameRegex = /^[a-zA-Z-'\s]{1,50}$/;
-  const otherTypeRegex = /^[a-zA-Z0-9\s\.,\-\']{1,50}$/;
+  const otherTypeRegex = /^[a-zA-Z0-9\s.,'-]{1,50}$/;
   const eventNumber = String(data.eventNumber ?? "").trim();
-  const eventRequiredActivities = [
-  "Incident-Call",
-  "Pile-Burn",
-  "Hazard-Reduction",
-  "Deployment",
-  "Strike-Team",
-  "Training",
-  "Community-Engagement"
-  ];
-  const requiresEvent = eventRequiredActivities.includes(data.activity);
-
   if (!data || typeof data !== "object") {
     return ["Invalid form data."];
   }

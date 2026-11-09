@@ -1,11 +1,10 @@
 import { useTitle } from '../../hooks/useTitle.jsx';
-import {useState, useEffect} from "react";
-import {useCsrfToken, csrfFetch} from "../../Components/csrfHelper.jsx"
+import { useState } from "react";
+import {csrfFetch} from "../../Components/csrfHelper.jsx"
 
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL
 const AddUser = () => {
-  const csrfToken = useCsrfToken(apiUrl);
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -64,7 +63,7 @@ const AddUser = () => {
     }
   } catch (err) {
     console.error(err);
-    setErrorMessage(data.message || "internal error occurred adding user please try again or contact admin");
+    setErrorMessage("An internal error occurred adding the user. Please try again or contact an administrator.");
   }
 };
   useTitle('Add User');
@@ -76,7 +75,9 @@ const AddUser = () => {
           {errorMessage && <div className="alert alert-danger fade show">{errorMessage}</div>}
           <form id="addUserForm" onSubmit={handleSubmit}>
             {/* First Name */}
+            <label htmlFor="firstName" className="form-label">First name</label>
             <input
+              id="firstName"
               type="text"
               name="firstName"
               className="form-control mb-3"
@@ -89,20 +90,24 @@ const AddUser = () => {
             />
 
             {/* Last Name */}
+            <label htmlFor="lastName" className="form-label">Last name</label>
             <input
+              id="lastName"
               type="text"
               name="lastName"
               className="form-control mb-3"
               placeholder="Last Name"
               maxLength={25}
               required
-              pattern={"^[a-zA-Z-'\s]{1,25}$"}
+              pattern={"^[a-zA-Z' -]{1,25}$"}
               value={formData.lastName}
               onChange={handleChange}
             />
 
             {/* Fire Zone Number */}
+            <label htmlFor="fireZoneNumber" className="form-label">Fire zone number</label>
             <input
+              id="fireZoneNumber"
               type="text"
               name="fireZoneNumber"
               className="form-control mb-3"
@@ -116,7 +121,9 @@ const AddUser = () => {
             />
 
             {/* Status */}
+            <label htmlFor="memberStatus" className="form-label">Status</label>
             <select
+              id="memberStatus"
               name="Status"
               className="form-control mb-3"
               required
@@ -130,7 +137,9 @@ const AddUser = () => {
             </select>
 
             {/* Classification */}
+            <label htmlFor="memberClassification" className="form-label">Membership classification</label>
             <select
+              id="memberClassification"
               name="Classification"
               className="form-control mb-3"
               required
@@ -144,7 +153,9 @@ const AddUser = () => {
             </select>
 
             {/* Type */}
+            <label htmlFor="membershipType" className="form-label">Membership type</label>
             <select
+              id="membershipType"
               name="Type"
               className="form-control mb-3"
               required
@@ -189,4 +200,4 @@ export default AddUser;
 import {
   validateUserForm,
   sanitizeName
-} from '../../Utils/formValidation'; 
+} from '../../Utils/formValidation';
